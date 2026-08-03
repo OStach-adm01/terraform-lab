@@ -1,49 +1,82 @@
 # Roadmap
 
-Cel: zbudować i udokumentować homelab pokazujący podstawowe umiejętności Junior DevOps / SysOps / SysAdmin.
+Goal: build and document a homelab that demonstrates core Junior DevOps / SysOps / SysAdmin skills.
 
 ## 1. Terraform + Proxmox
 
-- [x] Przygotować Ubuntu Cloud-Init template.
-- [x] Skonfigurować provider i przechowywać sekrety poza Git.
-- [x] Zainicjalizować Terraform i wersjonować lock file.
-- [ ] Utworzyć `ansible-controller` z kluczem SSH i statycznym IP.
-- [ ] Zbudować moduł VM i utworzyć węzły Kubernetes.
-- [ ] Dodać outputy IP oraz dokumentację infrastruktury.
+- [x] Prepare an Ubuntu Cloud-Init template.
+- [x] Configure the provider and keep secrets outside Git.
+- [x] Initialize Terraform and commit the lock file.
+- [ ] Create `ansible-controller` with an SSH key and a static IP address.
+- [ ] Build a VM module and create the Kubernetes nodes.
+- [ ] Add IP outputs and infrastructure documentation.
 
 ## 2. Ansible
 
-- [ ] Utworzyć inventory i połączenie SSH.
-- [ ] Stworzyć rolę `common` (aktualizacje, pakiety, użytkownik, podstawowy hardening).
-- [ ] Stworzyć role przygotowujące węzły Kubernetes.
-- [ ] Zapewnić idempotencję i uruchomić `ansible-lint`.
+- [ ] Create an inventory and verify the SSH connection.
+- [ ] Create a `common` role for updates, packages, users, and basic hardening.
+- [ ] Create roles that prepare Kubernetes nodes.
+- [ ] Ensure idempotency and run `ansible-lint`.
 
-## 3. Kontenery
+## 3. Containers
 
-- [ ] Zbudować prostą aplikację demo w Dockerze.
-- [ ] Opisać Dockerfile, tagowanie obrazów i podstawy bezpieczeństwa obrazu.
-- [ ] Udostępnić obraz lokalnie lub w rejestrze kontenerów.
+- [ ] Build a simple demo application with Docker.
+- [ ] Document the Dockerfile, image tagging, and basic image security.
+- [ ] Publish the image locally or to a container registry.
 
 ## 4. Kubernetes
 
-- [ ] Utworzyć control plane i workery przez Terraform.
-- [ ] Skonfigurować klaster przez Ansible i kubeadm.
-- [ ] Zainstalować CNI, metrics-server i ingress controller.
-- [ ] Wdrożyć aplikację: Deployment, Service, Ingress, ConfigMap, Secret i HPA.
+- [ ] Create the control plane and worker nodes with Terraform.
+- [ ] Configure the cluster with Ansible and kubeadm.
+- [ ] Install a CNI, metrics-server, and an ingress controller.
+- [ ] Deploy the application: Deployment, Service, Ingress, ConfigMap, Secret, and HPA.
 
-## 5. Jakość i portfolio
+## 5. Quality and Portfolio
 
-- [ ] Dodać testy: `terraform fmt`/`validate`, `tflint`, `ansible-lint` i `yamllint`.
-- [ ] Uzupełnić README o diagram, instrukcję uruchomienia i troubleshooting.
-- [ ] Udokumentować decyzje, ograniczenia i sposób bezpiecznego niszczenia labu.
+- [ ] Add checks: `terraform fmt`/`validate`, `tflint`, `ansible-lint`, and `yamllint`.
+- [ ] Extend the README with a diagram, setup instructions, and troubleshooting.
+- [ ] Document decisions, limitations, and how to safely destroy the lab.
 
-## Plan adresacji
+## IP Address Plan
 
-| Adres | Nazwa | Rola |
+| Address | Name | Role |
 | --- | --- | --- |
-| `192.168.0.220/24` | `ansible-controller` | Kontroler Ansible |
+| `192.168.0.220/24` | `ansible-controller` | Ansible control node |
 | `192.168.0.221/24` | `k8s-cp-01` | Kubernetes control plane |
 | `192.168.0.222/24` | `k8s-worker-01` | Kubernetes worker |
 | `192.168.0.223/24` | `k8s-worker-02` | Kubernetes worker |
 
-Brama i DNS: `192.168.0.1`. Przed utworzeniem VM sprawdzamy dostępność wybranego adresu; docelowo adresy powinny zostać wyłączone z puli DHCP lub zarezerwowane na routerze.
+Gateway and DNS: `192.168.0.1`. Check that an address is available before creating a VM; eventually, exclude these addresses from the DHCP pool or reserve them on the router.
+
+## Target Infrastructure
+
+This project has one lab environment, so the Terraform configuration is not split into `environments/` directories.
+
+```text
+terraform-lab/
+├── providers.tf
+├── variables.tf
+├── main.tf
+├── outputs.tf
+├── terraform.tfvars.example
+├── secret.auto.tfvars          # ignored by Git
+├── modules/
+│   └── proxmox-vm/
+├── ansible/
+├── kubernetes/
+└── docs/
+```
+
+`main.tf` defines the lab's specific VMs and calls the `proxmox-vm` module. The module contains the reusable Proxmox VM definition.
+
+| VMID | Name | Role | Address |
+| ---: | --- | --- | --- |
+| 300 | `ubuntu-2404-cloud-template` | Ubuntu 24.04 template | — |
+| 310 | `ansible-controller` | Ansible control node | `192.168.0.220/24` |
+| 311 | `k8s-cp-01` | Kubernetes control plane | `192.168.0.221/24` |
+| 312 | `k8s-worker-01` | Kubernetes worker | `192.168.0.222/24` |
+| 313 | `k8s-worker-02` | Kubernetes worker | `192.168.0.223/24` |
+
+All VMs use node `pve`, pool `terraform-lab`, bridge `vmbr0`, storage `local-lvm`, and gateway/DNS `192.168.0.1`.
+
+The SSH private key stays locally in `~/.ssh/` and never enters Git or Terraform state. The path to its public counterpart is configured locally in the Git-ignored `terraform.tfvars` file.
