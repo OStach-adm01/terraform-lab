@@ -15,13 +15,13 @@ variable "ssh_public_key_path" {
 }
 
 variable "vms" {
-    description = "Virtual machines managed by lab"
+  description = "Virtual machines managed by lab"
 
-    type = map(object({
-        vm_id = number
-        cpu_cores = number
-        memory_mb = number
-        ipv4_address = string
-        tags = list(string)
-    }))
+  type = map(object({
+    vm_id        = number
+    cpu_cores    = number
+    memory_mb    = number
+    ipv4_address = string
+    tags         = list(string)
+  }))
 }
