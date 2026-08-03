@@ -12,5 +12,16 @@ variable "proxmox_endpoint" {
 variable "ssh_public_key_path" {
   description = "Local path to public ssh key for VMs"
   type        = string
-  default     = "~/.ssh/id_ed25519_terraform_lab.pub"
+}
+
+variable "vms" {
+    description = "Virtual machines managed by lab"
+
+    type = map(object({
+        vm_id = number
+        cpu_cores = number
+        memory_mb = number
+        ipv4_address = string
+        tags = list(string)
+    }))
 }

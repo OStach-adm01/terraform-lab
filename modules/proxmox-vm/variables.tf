@@ -10,7 +10,7 @@ variable "vm" {
         datastore_id = string
 
         cpu_cores = number
-        memory_mb - number
+        memory_mb = number
 
         network_bridge = string
         ipv4_address = string

@@ -30,7 +30,7 @@ cpu {
 }
 
 memory {
-    dedicated = var.vm.memory_dedicated
+    dedicated = var.vm.memory_mb
 }
 
 initialization {
