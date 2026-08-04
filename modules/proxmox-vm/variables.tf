@@ -27,8 +27,8 @@ variable "vm" {
     dns_servers    = list(string)
     dns_domain     = string
 
-    ssh_public_key = string
-    username       = optional(string, "devops")
-    tags           = list(string)
+    ssh_public_keys = list(string)
+    username        = optional(string, "devops")
+    tags            = list(string)
   })
 }

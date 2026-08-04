@@ -9,8 +9,13 @@ variable "proxmox_endpoint" {
   default     = "https://192.168.0.10:8006/"
 }
 
-variable "ssh_public_key_path" {
-  description = "Local path to public ssh key for VMs"
+variable "admin_ssh_public_key_path" {
+  description = "Local path to administrator ssh public key"
+  type        = string
+}
+
+variable "ansible_ssh_public_key_path" {
+  description = "Local path to ansible controller ssh public key"
   type        = string
 }
 
@@ -18,10 +23,11 @@ variable "vms" {
   description = "Virtual machines managed by lab"
 
   type = map(object({
-    vm_id        = number
-    cpu_cores    = number
-    memory_mb    = number
-    ipv4_address = string
-    tags         = list(string)
+    vm_id           = number
+    cpu_cores       = number
+    memory_mb       = number
+    ipv4_address    = string
+    tags            = list(string)
+    ansible_managed = optional(bool, false)
   }))
 }
