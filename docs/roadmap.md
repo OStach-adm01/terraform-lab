@@ -7,7 +7,7 @@ Goal: build and document a homelab that demonstrates core Junior DevOps / SysOps
 - [x] Prepare an Ubuntu Cloud-Init template.
 - [x] Configure the provider and keep secrets outside Git.
 - [x] Initialize Terraform and commit the lock file.
-- [ ] Create `ansible-controller` with an SSH key and a static IP address.
+- [x] Create and verify `ansible-controller` with an SSH key and a static IP address.
 - [ ] Build a VM module and create the Kubernetes nodes.
 - [ ] Add IP outputs and infrastructure documentation.
 
