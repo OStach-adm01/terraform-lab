@@ -11,7 +11,6 @@ locals {
 
     efi_disk = {
       datastore_id      = "local-lvm"
-      type              = "4m"
       pre_enrolled_keys = true
     }
 
