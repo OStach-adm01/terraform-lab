@@ -1,0 +1,16 @@
+---
+- name: Inspect Ansible controller
+  hosts: ansible_controllers
+  gather_facts: true
+  become: false
+
+
+  tasks:
+    - name: Display selected system facts
+      ansible.builtin.debug:
+        msg:
+          - "Hostname: {{ ansible_hostname }}"
+          - "Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "IPv4 address: {{ ansible_default_ipv4.address }}"
+          - "vCPUs: {{ ansible_processor_vcpus }}"
+          - "Memory: {{ ansible_memtotal_mb }} MB"
