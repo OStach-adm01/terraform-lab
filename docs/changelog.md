@@ -16,6 +16,9 @@
 - Added the `control_plane`, `workers`, and `k8s_cluster` inventory groups with shared SSH connection variables.
 - Added a read-only connectivity playbook that verifies SSH readiness, Ansible module execution, minimal fact gathering, and passwordless privilege escalation.
 - Enabled and recreated `k8s-worker-01` (VMID 312) as the first Ansible canary while leaving VMIDs 311 and 313 disabled.
+- Added the initial `common` role for package installation, QEMU Guest Agent management, timezone configuration, and NTP synchronization through `systemd-timesyncd`.
+- Added a handler that restarts `systemd-timesyncd` only when its managed configuration changes.
+- Reduced the modem's DHCPv4 pool so that it no longer overlaps the static Terraform address range `192.168.0.220-192.168.0.223`.
 
 ### Verification
 
@@ -26,11 +29,14 @@
 - Installed Ansible Core on the controller, cloned the project repository, and successfully ran the versioned local inspection playbook.
 - Confirmed a clean Terraform plan with only `ansible-controller` enabled.
 - Recorded the SSH host key for `k8s-worker-01`, then completed every connectivity playbook task successfully from `ansible-controller`.
+- Ran the initial package and QEMU Guest Agent baseline twice on `k8s-worker-01`; both runs completed with `changed=0`.
+- Validated the extended `common` role against `k8s-worker-01` in Ansible check and diff modes; the play recap reported `ok=10`, `changed=4`, `unreachable=0`, and `failed=0`.
 
 ### Documentation
 
 - Marked the legacy Microsoft Secure Boot certificate problem as resolved.
 - Updated the golden image specification and current infrastructure inventory.
+- Documented the DHCP address conflict and the corrected separation between the dynamic and static address ranges.
 
 ## 2026-08-04
 

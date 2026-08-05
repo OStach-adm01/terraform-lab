@@ -33,8 +33,11 @@ Verification gate: all four VMs are reachable with the expected identity and con
 - [ ] Gather and inspect facts from all managed nodes.
 - [ ] Verify passwordless privilege escalation with `become` on all managed nodes.
 - [ ] Create a `common` role for updates, base packages, time synchronization, users, and basic hardening.
+- [x] Add the initial `common` role tasks for base packages and QEMU Guest Agent management.
+- [x] Extend the `common` role with timezone and `systemd-timesyncd` configuration.
+- [ ] Apply the extended `common` role to `k8s-worker-01`.
 - [ ] Run the `common` role a second time and confirm `changed=0`.
-- [ ] Review the role with Ansible check and diff modes.
+- [x] Review the extended role on `k8s-worker-01` with Ansible check and diff modes (`ok=10`, `changed=4`, `unreachable=0`, `failed=0`).
 
 Verification gate: every managed node is reachable through Ansible, privilege escalation works, and the common configuration is idempotent.
 
@@ -128,7 +131,7 @@ This project has one lab environment, so the Terraform configuration is not spli
 | 301 | `ubuntu-2404-cloud-template-uefi2023` | Current Ubuntu 24.04 template | — | 2 vCPU, 2 GB RAM, 20 GB disk | Verified; EFI `4m`, Secure Boot, Microsoft UEFI 2023 certificates |
 | 310 | `ansible-controller` | Ansible control node | `192.168.0.220/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Recreated from VMID 301; verified; Ansible Core operational |
 | 311 | `k8s-cp-01` | Planned control plane | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
-| 312 | `k8s-worker-01` | Ansible canary and planned worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned from VMID 301; `enabled = true`; Ansible connectivity verified |
+| 312 | `k8s-worker-01` | Ansible canary and planned worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned from VMID 301; connectivity verified; extended `common` role check passed |
 | 313 | `k8s-worker-02` | Planned worker | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
 
 All current and planned VMs use node `pve`, pool `terraform-lab`, bridge `vmbr0`, storage `local-lvm`, and gateway/DNS `192.168.0.1`.
@@ -144,7 +147,7 @@ Terraform creates reachable Ubuntu VMs. Ansible configures their operating syste
 | `192.168.0.222/24` | `k8s-worker-01` | Kubernetes worker |
 | `192.168.0.223/24` | `k8s-worker-02` | Kubernetes worker |
 
-Gateway and DNS are `192.168.0.1`. The addresses did not respond before provisioning, but their availability could not be confirmed in the router. DHCP exclusions or reservations remain a future improvement, and an address conflict is an accepted lab risk.
+Gateway and DNS are `192.168.0.1`. The modem's DHCPv4 pool was reduced so that it ends below the Terraform-managed static range. Addresses `192.168.0.220-192.168.0.223` are therefore excluded from dynamic allocation; this separation must be preserved if either range is changed later.
 
 Pod CIDR and Service CIDR are intentionally undecided. They must not overlap `192.168.0.0/24` or each other.
 
