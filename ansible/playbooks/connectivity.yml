@@ -1,0 +1,25 @@
+---
+- name: Verify Kubernetes host connectivity
+  hosts: k8s_cluster
+  gather_facts: false
+
+  tasks:
+    - name: Wait for the host to become reachable over SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 60
+       changed_when: false
+
+    - name: Verify Ansible module execution
+      ansible.builtin.ping:
+
+    - name: Gather minimal system facts
+      ansible.builtin.setup:
+        gather_subset:
+          - min
+
+    - name: Verify passwordless privilege escalation
+      ansible.builtin.command: /usr/bin/id -u
+      become: true
+      register: become_check
+      changed_when: false
+      failed_when: become_check.stdout != "0"
