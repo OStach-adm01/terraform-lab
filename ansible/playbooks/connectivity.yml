@@ -7,7 +7,7 @@
     - name: Wait for the host to become reachable over SSH
       ansible.builtin.wait_for_connection:
         timeout: 60
-       changed_when: false
+      changed_when: false
 
     - name: Verify Ansible module execution
       ansible.builtin.ping:
