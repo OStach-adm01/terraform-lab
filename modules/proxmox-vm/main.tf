@@ -13,6 +13,7 @@ resource "proxmox_virtual_environment_vm" "this" {
 
   efi_disk {
     datastore_id      = var.vm.efi_disk.datastore_id
+    type              = var.vm.efi_disk.type
     pre_enrolled_keys = var.vm.efi_disk.pre_enrolled_keys
   }
 

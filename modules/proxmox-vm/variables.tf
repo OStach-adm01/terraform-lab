@@ -15,6 +15,7 @@ variable "vm" {
 
     efi_disk = object({
       datastore_id      = string
+      type              = string
       pre_enrolled_keys = bool
     })
 

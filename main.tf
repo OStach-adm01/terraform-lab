@@ -2,7 +2,7 @@ locals {
   vm_defaults = {
     node_name      = "pve"
     pool_id        = "terraform-lab"
-    template_vm_id = 300
+    template_vm_id = 301
     datastore_id   = "local-lvm"
     bios           = "ovmf"
     machine        = "q35"
@@ -11,6 +11,7 @@ locals {
 
     efi_disk = {
       datastore_id      = "local-lvm"
+      type              = "4m"
       pre_enrolled_keys = true
     }
 

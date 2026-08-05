@@ -14,6 +14,7 @@ Each phase ends with a verification gate. A component is considered complete onl
 - [x] Add Terraform outputs for VM IPv4 addresses.
 - [x] Add separate administrator and Ansible controller SSH keys for Ansible-managed VMs.
 - [x] Provision the future Kubernetes nodes as unconfigured Ubuntu VMs.
+- [x] Replace the legacy EFI template with a Secure Boot template using EFI `4m` and Microsoft UEFI 2023 certificates.
 - [ ] Verify Cloud-Init, hostnames, networking, SSH, QEMU Guest Agent, and passwordless sudo on every new VM.
 - [ ] Confirm a clean Terraform plan without drift after provisioning.
 - [ ] Complete the Terraform and infrastructure documentation.
@@ -121,7 +122,8 @@ This project has one lab environment, so the Terraform configuration is not spli
 
 | VMID | Name | Current role | Address | Resources | Status |
 | ---: | --- | --- | --- | --- | --- |
-| 300 | `ubuntu-2404-cloud-template` | Ubuntu 24.04 template | — | 2 vCPU, 2 GB RAM, 20 GB disk | Available; EFI warning documented |
+| 300 | `ubuntu-2404-cloud-template` | Legacy Ubuntu 24.04 template | — | 2 vCPU, 2 GB RAM, 20 GB disk | Retained temporarily as a rollback source; EFI `2m` warning applies |
+| 301 | `ubuntu-2404-cloud-template-uefi2023` | Current Ubuntu 24.04 template | — | 2 vCPU, 2 GB RAM, 20 GB disk | Verified; EFI `4m`, Secure Boot, Microsoft UEFI 2023 certificates |
 | 310 | `ansible-controller` | Ansible control node | `192.168.0.220/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Verified |
 | 311 | `k8s-cp-01` | Unconfigured future control plane | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Provisioned; verification pending |
 | 312 | `k8s-worker-01` | Unconfigured future worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned; verification pending |

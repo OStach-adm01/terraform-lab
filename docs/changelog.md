@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-08-05
+
+### Changed
+
+- Created `ubuntu-2404-cloud-template-uefi2023` (VMID 301) from the previous Ubuntu 24.04 golden image.
+- Replaced the legacy EFI vars disk with EFI type `4m`, pre-enrolled keys, and Microsoft UEFI 2023 certificates (`ms-cert=2023k`).
+- Removed the template's Cloud-Init password, embedded SSH authorized keys, Cloud-Init instance state, machine ID, and SSH host keys before conversion to a template.
+- Updated the Terraform VM defaults to clone VMID 301 and explicitly configure EFI type `4m`.
+- Extended the `proxmox-vm` module input contract and resource configuration with the EFI disk type.
+
+### Verification
+
+- Confirmed that the replacement template boots Ubuntu with Secure Boot enabled and without the legacy EFI certificate warning.
+- Confirmed on a disposable clone that Cloud-Init completed, the `ubuntu` password remained locked, password-based SSH authentication was disabled, and no usable SSH authorized keys were inherited.
+- Removed the disposable verification clone after testing.
+
+### Documentation
+
+- Marked the legacy Microsoft Secure Boot certificate problem as resolved.
+- Updated the golden image specification and current infrastructure inventory.
+
 ## 2026-08-04
 
 ### Added
