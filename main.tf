@@ -20,6 +20,13 @@ locals {
     dns_servers    = ["192.168.0.1"]
     dns_domain     = "stan.lab"
   }
+
+  active_vms = {
+    for name, vm in var.vms :
+    name => vm
+    if vm.enabled
+  }
+
   admin_ssh_public_key = trimspace(
     file(pathexpand(var.admin_ssh_public_key_path))
   )
@@ -29,7 +36,7 @@ locals {
 }
 
 module "proxmox_vm" {
-  for_each = var.vms
+  for_each = local.active_vms
 
   source = "./modules/proxmox-vm"
 
@@ -38,10 +45,10 @@ module "proxmox_vm" {
     each.value,
     {
       name = replace(each.key, "_", "-")
-      ssh_public_keys = concat(
-        [local.admin_ssh_public_key],
-        each.value.ansible_managed ? [local.ansible_ssh_public_key] : []
-      )
+      ssh_public_keys = compact([
+        local.admin_ssh_public_key,
+        each.value.ansible_managed ? local.ansible_ssh_public_key : null,
+      ])
     }
   )
 }

@@ -29,5 +29,6 @@ variable "vms" {
     ipv4_address    = string
     tags            = list(string)
     ansible_managed = optional(bool, false)
+    enabled         = optional(bool, true)
   }))
 }
