@@ -13,6 +13,9 @@
 - Disabled and removed the three unconfigured Kubernetes VMs while retaining their definitions for later recreation.
 - Recreated `ansible-controller` (VMID 310) from VMID 301 after adding the source template to the `terraform-lab` pool.
 - Rotated the Ansible controller SSH key pair; the new private key remains on the controller and only its public key is referenced by the local Terraform configuration.
+- Added the `control_plane`, `workers`, and `k8s_cluster` inventory groups with shared SSH connection variables.
+- Added a read-only connectivity playbook that verifies SSH readiness, Ansible module execution, minimal fact gathering, and passwordless privilege escalation.
+- Enabled and recreated `k8s-worker-01` (VMID 312) as the first Ansible canary while leaving VMIDs 311 and 313 disabled.
 
 ### Verification
 
@@ -22,6 +25,7 @@
 - Confirmed Cloud-Init, static networking, administrator SSH access, EFI `4m` with `ms-cert=2023k`, Secure Boot, and QEMU Guest Agent on the recreated `ansible-controller`.
 - Installed Ansible Core on the controller, cloned the project repository, and successfully ran the versioned local inspection playbook.
 - Confirmed a clean Terraform plan with only `ansible-controller` enabled.
+- Recorded the SSH host key for `k8s-worker-01`, then completed every connectivity playbook task successfully from `ansible-controller`.
 
 ### Documentation
 

@@ -24,7 +24,7 @@ vms = {
     ipv4_address    = "192.168.0.222/24"
     tags            = ["terraform", "ansible", "kubernetes", "worker"]
     ansible_managed = true
-    enabled         = false
+    enabled         = true
   }
 
   k8s_worker_02 = {

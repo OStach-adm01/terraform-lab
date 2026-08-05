@@ -1,0 +1,6 @@
+---
+common_packages:
+  - bash-completion
+  - ca-certificates
+  - curl
+  - jq

@@ -26,7 +26,8 @@ Verification gate: all four VMs are reachable with the expected identity and con
 
 - [x] Verify Ansible locally on `ansible-controller` using a minimal inventory and inspection playbook.
 - [x] Create a dedicated SSH key pair for `ansible-controller`.
-- [ ] Add `control_plane`, `workers`, and `k8s_cluster` groups to the inventory.
+- [x] Add `control_plane`, `workers`, and `k8s_cluster` groups to the inventory.
+- [x] Provision `k8s-worker-01` as a canary and verify SSH, Ansible modules, minimal facts, and passwordless privilege escalation.
 - [ ] Record and verify SSH host keys for every managed node.
 - [ ] Verify SSH connectivity and `ansible.builtin.ping` from `ansible-controller` to every managed node.
 - [ ] Gather and inspect facts from all managed nodes.
@@ -127,12 +128,12 @@ This project has one lab environment, so the Terraform configuration is not spli
 | 301 | `ubuntu-2404-cloud-template-uefi2023` | Current Ubuntu 24.04 template | — | 2 vCPU, 2 GB RAM, 20 GB disk | Verified; EFI `4m`, Secure Boot, Microsoft UEFI 2023 certificates |
 | 310 | `ansible-controller` | Ansible control node | `192.168.0.220/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Recreated from VMID 301; verified; Ansible Core operational |
 | 311 | `k8s-cp-01` | Planned control plane | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
-| 312 | `k8s-worker-01` | Planned worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
+| 312 | `k8s-worker-01` | Ansible canary and planned worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned from VMID 301; `enabled = true`; Ansible connectivity verified |
 | 313 | `k8s-worker-02` | Planned worker | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
 
 All current and planned VMs use node `pve`, pool `terraform-lab`, bridge `vmbr0`, storage `local-lvm`, and gateway/DNS `192.168.0.1`.
 
-Terraform creates reachable Ubuntu VMs. Ansible configures their operating systems. The Kubernetes VM definitions remain disabled until host provisioning and Ansible connectivity work resumes.
+Terraform creates reachable Ubuntu VMs. Ansible configures their operating systems. `k8s-worker-01` is currently enabled as the canary host; the control-plane and second worker definitions remain disabled until the baseline workflow is verified.
 
 ## Network and Address Plan
 

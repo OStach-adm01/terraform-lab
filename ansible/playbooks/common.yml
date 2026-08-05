@@ -1,0 +1,8 @@
+---
+- name: Apply the common system baseline
+  hosts: k8s_cluster
+  become: true
+  gather_facts: true
+
+  roles:
+    - common
