@@ -56,3 +56,15 @@ The migration was completed in controlled stages:
 8. A final Terraform plan reported no changes with the Kubernetes VM definitions still disabled.
 
 The migration path was subsequently verified by enabling `k8s-worker-01` as a canary. Terraform created VMID 312 from VMID 301 with the administrator and new Ansible public keys, and the Ansible connectivity playbook verified SSH, module execution, fact gathering, and passwordless privilege escalation. VMIDs 311 and 313 remain disabled until the same workflow is ready to be applied to the rest of the cluster. The old template (VMID 300) remains available temporarily as a rollback source.
+
+## 3. DHCP pool overlapped the static lab address range
+
+Status: resolved on 2026-08-05.
+
+The modem's DHCPv4 pool started at `192.168.0.10` and its configured number of CPE addresses allowed dynamic leases to overlap the static Terraform address range `192.168.0.220-192.168.0.223`.
+
+A phone received `192.168.0.220`, which was also assigned statically to `ansible-controller`. Two devices then claimed the same IPv4 address with different MAC addresses. The workstation could intermittently reach the wrong device, causing an established SSH session to end with `Broken pipe` and subsequent connection attempts to return `Connection refused` even though `sshd` remained active on the controller.
+
+The DHCPv4 number-of-CPE setting was reduced in the modem so that the dynamic pool ends below the lab's static address range. Addresses `192.168.0.220-192.168.0.223` are now excluded from dynamic allocation and remain available for Terraform-managed VMs.
+
+The static range must remain outside the DHCP pool when either side is changed. Existing conflicting leases should be removed or renewed after a pool change before connectivity is considered restored. MAC-based DHCP reservations are not the primary mechanism for these VMs because a recreated Terraform resource can receive a new generated MAC address while retaining its planned static IPv4 address.

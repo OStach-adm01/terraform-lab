@@ -4,3 +4,14 @@ common_packages:
   - ca-certificates
   - curl
   - jq
+
+common_timezone: Etc/UTC
+
+common_ntp_servers:
+  - ntp.ubuntu.com
+
+common_ntp_fallback_servers:
+  - 0.pool.ntp.org
+  - 1.pool.ntp.org
+  - 2.pool.ntp.org
+  - 3.pool.ntp.org
