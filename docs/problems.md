@@ -8,7 +8,7 @@ The first Ubuntu golden image was created with the `i440fx` machine type and leg
 
 ## 2. EFI disk uses legacy Microsoft Secure Boot certificates
 
-Status: replacement template resolved on 2026-08-05; migration of existing VMs in progress.
+Status: resolved on 2026-08-05.
 
 VMs cloned from the previous golden image (VMID 300) started with the following Proxmox warning:
 
@@ -42,16 +42,17 @@ Both `clone.vm_id` changing from 300 to 301 and `efi_disk.type` changing from `2
 
 The replacement of `ansible-controller` also removes the Ansible private key stored inside that VM. This is intentional for the selected migration, but the new controller must receive a newly generated key pair before any Ansible-managed VM is provisioned again.
 
-### Selected migration
+### Completed migration
 
-The migration will be performed in stages:
+The migration was completed in controlled stages:
 
-1. Temporarily disable the three Kubernetes VM definitions while retaining their configuration for later reuse.
-2. Review a new Terraform plan that replaces only `ansible-controller` and removes the currently unused Kubernetes nodes.
-3. Recreate `ansible-controller` from VMID 301 and verify Cloud-Init, networking, administrator SSH access, Secure Boot, and QEMU Guest Agent.
-4. Generate a new Ansible SSH key pair on the new controller. Its private key remains only on `ansible-controller`.
-5. Copy the new public key to the workstation path configured by `ansible_ssh_public_key_path`.
-6. Re-enable the Kubernetes VM definitions so Terraform creates them from VMID 301 with the administrator and new Ansible public keys.
-7. Verify the final Terraform plan before applying it, then validate SSH host keys and Ansible connectivity for every recreated node.
+1. An `enabled` attribute was added to the root VM definitions and the module `for_each` was restricted to enabled VMs.
+2. The three Kubernetes VM definitions were disabled but retained in `lab.tfvars`; Terraform removed VMIDs 311-313.
+3. The first attempt to recreate `ansible-controller` failed because VMID 301 was not a member of the `terraform-lab` pool and the restricted API token did not have `VM.Clone` permission on the source template.
+4. VMID 301 was added to the pool, a fresh plan was reviewed, and `ansible-controller` was recreated as VMID 310 from the replacement template.
+5. Cloud-Init, static networking, administrator SSH access, EFI `4m` with `ms-cert=2023k`, Secure Boot, and QEMU Guest Agent were verified on the new controller.
+6. Ansible Core was installed, the repository was cloned from GitHub, and the versioned local inspection playbook completed successfully.
+7. A new Ansible SSH key pair was generated on the controller. Its private key remains there, while its public key was copied to the workstation path configured by `ansible_ssh_public_key_path`.
+8. A final Terraform plan reported no changes with the Kubernetes VM definitions still disabled.
 
-The old template (VMID 300) remains available as a temporary rollback source until the migration and post-provisioning checks are complete.
+When Kubernetes work resumes, setting `enabled = true` will recreate VMIDs 311-313 from VMID 301 with the administrator and new Ansible public keys. The old template (VMID 300) remains available temporarily as a rollback source.

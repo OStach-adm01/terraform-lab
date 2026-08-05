@@ -9,12 +9,19 @@
 - Removed the template's Cloud-Init password, embedded SSH authorized keys, Cloud-Init instance state, machine ID, and SSH host keys before conversion to a template.
 - Updated the Terraform VM defaults to clone VMID 301 and explicitly configure EFI type `4m`.
 - Extended the `proxmox-vm` module input contract and resource configuration with the EFI disk type.
+- Added an `enabled` attribute to VM definitions and filtered the module instances so planned VMs can remain versioned without being provisioned.
+- Disabled and removed the three unconfigured Kubernetes VMs while retaining their definitions for later recreation.
+- Recreated `ansible-controller` (VMID 310) from VMID 301 after adding the source template to the `terraform-lab` pool.
+- Rotated the Ansible controller SSH key pair; the new private key remains on the controller and only its public key is referenced by the local Terraform configuration.
 
 ### Verification
 
 - Confirmed that the replacement template boots Ubuntu with Secure Boot enabled and without the legacy EFI certificate warning.
 - Confirmed on a disposable clone that Cloud-Init completed, the `ubuntu` password remained locked, password-based SSH authentication was disabled, and no usable SSH authorized keys were inherited.
 - Removed the disposable verification clone after testing.
+- Confirmed Cloud-Init, static networking, administrator SSH access, EFI `4m` with `ms-cert=2023k`, Secure Boot, and QEMU Guest Agent on the recreated `ansible-controller`.
+- Installed Ansible Core on the controller, cloned the project repository, and successfully ran the versioned local inspection playbook.
+- Confirmed a clean Terraform plan with only `ansible-controller` enabled.
 
 ### Documentation
 

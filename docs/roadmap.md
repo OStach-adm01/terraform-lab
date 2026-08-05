@@ -13,8 +13,9 @@ Each phase ends with a verification gate. A component is considered complete onl
 - [x] Create and verify `ansible-controller` with a static IP address and administrator SSH access.
 - [x] Add Terraform outputs for VM IPv4 addresses.
 - [x] Add separate administrator and Ansible controller SSH keys for Ansible-managed VMs.
-- [x] Provision the future Kubernetes nodes as unconfigured Ubuntu VMs.
+- [x] Provision the future Kubernetes nodes as unconfigured Ubuntu VMs for the initial infrastructure test.
 - [x] Replace the legacy EFI template with a Secure Boot template using EFI `4m` and Microsoft UEFI 2023 certificates.
+- [x] Add an explicit VM enable switch and retain the disabled Kubernetes definitions for later recreation.
 - [ ] Verify Cloud-Init, hostnames, networking, SSH, QEMU Guest Agent, and passwordless sudo on every new VM.
 - [ ] Confirm a clean Terraform plan without drift after provisioning.
 - [ ] Complete the Terraform and infrastructure documentation.
@@ -116,7 +117,7 @@ Verification gate: the application is reachable through ingress, handles configu
 
 Verification gate: a new reader can understand, validate, operate, troubleshoot, and safely rebuild the lab from the repository documentation.
 
-## Current Infrastructure
+## Current and Planned Infrastructure
 
 This project has one lab environment, so the Terraform configuration is not split into `environments/` directories.
 
@@ -124,14 +125,14 @@ This project has one lab environment, so the Terraform configuration is not spli
 | ---: | --- | --- | --- | --- | --- |
 | 300 | `ubuntu-2404-cloud-template` | Legacy Ubuntu 24.04 template | — | 2 vCPU, 2 GB RAM, 20 GB disk | Retained temporarily as a rollback source; EFI `2m` warning applies |
 | 301 | `ubuntu-2404-cloud-template-uefi2023` | Current Ubuntu 24.04 template | — | 2 vCPU, 2 GB RAM, 20 GB disk | Verified; EFI `4m`, Secure Boot, Microsoft UEFI 2023 certificates |
-| 310 | `ansible-controller` | Ansible control node | `192.168.0.220/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Verified |
-| 311 | `k8s-cp-01` | Unconfigured future control plane | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Provisioned; verification pending |
-| 312 | `k8s-worker-01` | Unconfigured future worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned; verification pending |
-| 313 | `k8s-worker-02` | Unconfigured future worker | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned; verification pending |
+| 310 | `ansible-controller` | Ansible control node | `192.168.0.220/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Recreated from VMID 301; verified; Ansible Core operational |
+| 311 | `k8s-cp-01` | Planned control plane | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
+| 312 | `k8s-worker-01` | Planned worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
+| 313 | `k8s-worker-02` | Planned worker | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
 
-All VMs use node `pve`, pool `terraform-lab`, bridge `vmbr0`, storage `local-lvm`, and gateway/DNS `192.168.0.1`.
+All current and planned VMs use node `pve`, pool `terraform-lab`, bridge `vmbr0`, storage `local-lvm`, and gateway/DNS `192.168.0.1`.
 
-Terraform creates reachable Ubuntu VMs. Ansible configures their operating systems. Kubernetes work starts only after the hosts pass infrastructure, SSH, and Ansible connectivity checks.
+Terraform creates reachable Ubuntu VMs. Ansible configures their operating systems. The Kubernetes VM definitions remain disabled until host provisioning and Ansible connectivity work resumes.
 
 ## Network and Address Plan
 
