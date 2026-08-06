@@ -1,0 +1,5 @@
+# Managed by Ansible. Manual changes may be overwritten.
+
+{% for parameter, value in kubernetes_node_sysctl_parameters | dictsort %}
+{{ parameter }} = {{ value }}
+{% endfor %}
