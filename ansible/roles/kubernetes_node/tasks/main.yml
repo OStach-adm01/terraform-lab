@@ -195,7 +195,7 @@
     that:
       - >-
         kubernetes_node_containerd_plugins.stdout
-        is search('(?m)^io\\.containerd\\.grpc\\.v1[ \t]+cri[ \t]+\\S+[ \t]+ok$')
+        is search('(?m)^io[.]containerd[.]grpc[.]v1[ \t]+cri[ \t]+[^ \t]+[ \t]+ok[ \t]*$')
     fail_msg: The containerd CRI plugin is not active
     success_msg: The containerd CRI plugin is active
   when: >-
