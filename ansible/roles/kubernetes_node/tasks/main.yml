@@ -158,6 +158,7 @@
     cmd: /usr/bin/containerd config dump
   register: kubernetes_node_containerd_config
   changed_when: false
+  check_mode: false
   when: >-
     not ansible_check_mode
     or (
@@ -183,6 +184,7 @@
     cmd: /usr/bin/ctr plugins list
   register: kubernetes_node_containerd_plugins
   changed_when: false
+  check_mode: false
   when: >-
     not ansible_check_mode
     or (
