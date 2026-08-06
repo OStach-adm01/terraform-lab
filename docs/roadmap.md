@@ -56,7 +56,7 @@ Verification gate: the versioned image runs locally, passes its health check, an
 
 ## 4. Kubernetes Host Preparation with Ansible
 
-- [x] Select and document Kubernetes `1.36.2`, containerd, Calico `3.32.1`, Pod CIDR `10.244.0.0/16`, and Service CIDR `10.96.0.0/12`.
+- [x] Select and document Kubernetes `1.36.3`, containerd, Calico `3.32.1`, Pod CIDR `10.244.0.0/16`, and Service CIDR `10.96.0.0/12`.
 - [x] Confirm that the Pod and Service networks do not overlap each other or the host network `192.168.0.0/24`.
 - [ ] Verify unique hostnames, MAC addresses, and `product_uuid` values on all Kubernetes nodes.
 - [ ] Verify required network connectivity and ports between the nodes.

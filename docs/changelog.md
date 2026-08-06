@@ -4,7 +4,7 @@
 
 ### Added
 
-- Selected Kubernetes `1.36.2`, containerd, Calico `3.32.1`, Pod CIDR `10.244.0.0/16`, and Service CIDR `10.96.0.0/12`; the cluster networks do not overlap each other or the host network `192.168.0.0/24`.
+- Selected Kubernetes `1.36.3`, containerd, Calico `3.32.1`, Pod CIDR `10.244.0.0/16`, and Service CIDR `10.96.0.0/12`; the cluster networks do not overlap each other or the host network `192.168.0.0/24`.
 - Added the `kubernetes_prepare.yml` playbook, which applies the existing `common` role before the new Kubernetes-specific host preparation role.
 - Added the initial `kubernetes_node` role for operating-system validation, kernel modules, networking `sysctl` parameters, swap policy, containerd with the systemd cgroup driver, and CRI checks.
 - Added the `pkgs.k8s.io` repository configuration, pinned installation of `kubelet`, `kubeadm`, and `kubectl`, package holds, and installed-version checks.

@@ -17,4 +17,5 @@ kubernetes_node_kubernetes_packages:
   - kubeadm
   - kubectl
 
-kubernetes_node_kubernetes_package_version: "{{ kubernetes_version }}-1.1"
+kubernetes_node_kubernetes_package_version: >-
+  {{ kubernetes_version }}-{{ kubernetes_package_revision }}
