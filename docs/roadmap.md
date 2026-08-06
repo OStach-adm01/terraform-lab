@@ -35,8 +35,8 @@ Verification gate: all four VMs are reachable with the expected identity and con
 - [ ] Create a `common` role for updates, base packages, time synchronization, users, and basic hardening.
 - [x] Add the initial `common` role tasks for base packages and QEMU Guest Agent management.
 - [x] Extend the `common` role with timezone and `systemd-timesyncd` configuration.
-- [ ] Apply the extended `common` role to `k8s-worker-01`.
-- [ ] Run the `common` role a second time and confirm `changed=0`.
+- [x] Apply the extended `common` role to `k8s-worker-01` (`changed=1`, no failures).
+- [x] Run the `common` role a second time and confirm `changed=0`.
 - [x] Review the extended role on `k8s-worker-01` with Ansible check and diff modes (`ok=10`, `changed=4`, `unreachable=0`, `failed=0`).
 
 Verification gate: every managed node is reachable through Ansible, privilege escalation works, and the common configuration is idempotent.

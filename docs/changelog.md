@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-06
+
+### Verification
+
+- Applied the extended `common` role to `k8s-worker-01`; the play completed without problems and reported `changed=1`.
+- Ran the extended `common` role a second time on `k8s-worker-01`; the play completed without problems and reported `changed=0`, confirming idempotence.
+
 ## 2026-08-05
 
 ### Changed
