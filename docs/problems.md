@@ -68,3 +68,49 @@ A phone received `192.168.0.220`, which was also assigned statically to `ansible
 The DHCPv4 number-of-CPE setting was reduced in the modem so that the dynamic pool ends below the lab's static address range. Addresses `192.168.0.220-192.168.0.223` are now excluded from dynamic allocation and remain available for Terraform-managed VMs.
 
 The static range must remain outside the DHCP pool when either side is changed. Existing conflicting leases should be removed or renewed after a pool change before connectivity is considered restored. MAC-based DHCP reservations are not the primary mechanism for these VMs because a recreated Terraform resource can receive a new generated MAC address while retaining its planned static IPv4 address.
+
+## 4. Kubernetes host-preparation role failed on partial and fresh-node states
+
+Status: resolved on 2026-08-06 and verified on `k8s-worker-01`.
+
+The first complete execution of the Kubernetes host-preparation role exposed several assumptions that were not visible during syntax checking. The failures were used to make the role recoverable, check-mode aware, and idempotent before applying it to the remaining cluster nodes.
+
+### Missing containerd configuration directory
+
+After the `containerd` package was installed, the role attempted to deploy `/etc/containerd/config.toml`, but the destination directory did not exist:
+
+```text
+Destination directory /etc/containerd does not exist
+```
+
+The role now checks the initial containerd state and explicitly creates `/etc/containerd` before rendering the configuration. This also allows a later execution to continue safely after an earlier run stopped partway through.
+
+### Runtime state was not fully reconciled after an interrupted run
+
+The first failed run had already installed packages and written kernel and `sysctl` configuration. A handler scheduled near the end of the play was never reached, so persistent configuration and active runtime state could temporarily differ.
+
+The role now reads the live values of the required Kubernetes `sysctl` parameters and applies only values that differ. This makes recovery independent of whether a previous play reached its handlers and avoids reporting changes when the live values are already correct.
+
+### Read-only containerd checks were skipped in Ansible check mode
+
+Ansible's `command` module skips commands by default under global `--check`. The subsequent assertions therefore received empty registered output and incorrectly reported that the systemd cgroup driver was disabled.
+
+The containerd configuration dump and plugin-status commands are read-only, so they now use `check_mode: false`. They execute even during a check-mode play and provide real output to their assertions without changing the node.
+
+### CRI plugin assertion did not accept padded command output
+
+`ctr plugins list` showed the CRI plugin with status `ok`, but its table output contained trailing whitespace. The original regular expression required `ok` to be immediately followed by the end of the line and rejected the valid row.
+
+The assertion was updated to accept horizontal whitespace after the status while still requiring the expected plugin type, identifier, and `ok` state. The role then verified that the containerd CRI plugin was active.
+
+### Requested Kubernetes package build was unavailable
+
+The initially selected package string did not exist in the configured `pkgs.k8s.io` repository. `apt-cache madison` showed that Kubernetes `1.36.3-1.1` was available, while the available `1.36.2` package used a different packaging revision.
+
+The lab standard was updated to Kubernetes `1.36.3`, and the role now installs and verifies the exact `1.36.3-1.1` versions of `kubelet`, `kubeadm`, and `kubectl`. The packages are placed on APT hold to prevent an unattended version change.
+
+### APT cache refresh prevented an idempotent recap
+
+An unconditional repository-specific cache refresh could report a change on every execution even when the repository configuration was unchanged. This obscured the expected `changed=0` result of the second host-preparation run.
+
+The signing-key and repository tasks now register whether they changed. The cache is refreshed immediately when either input changes; otherwise, a one-hour cache validity window is used. The final repeated play on `k8s-worker-01` reported `ok=37`, `changed=0`, `unreachable=0`, and `failed=0`.

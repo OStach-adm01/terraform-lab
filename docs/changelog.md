@@ -9,11 +9,14 @@
 - Added the initial `kubernetes_node` role for operating-system validation, kernel modules, networking `sysctl` parameters, swap policy, containerd with the systemd cgroup driver, and CRI checks.
 - Added the `pkgs.k8s.io` repository configuration, pinned installation of `kubelet`, `kubeadm`, and `kubectl`, package holds, and installed-version checks.
 - Added check-mode guards for operations that require binaries or packages not yet present on a fresh host.
+- Made the Kubernetes repository cache refresh idempotent while still forcing a refresh when the signing key or repository definition changes.
 
 ### Verification
 
 - Applied the extended `common` role to `k8s-worker-01`; the play completed without problems and reported `changed=1`.
 - Ran the extended `common` role a second time on `k8s-worker-01`; the play completed without problems and reported `changed=0`, confirming idempotence.
+- Applied the complete `kubernetes_prepare.yml` playbook to the `k8s-worker-01` canary and verified the required kernel modules, networking parameters, disabled swap, containerd systemd cgroup driver, active CRI plugin, Kubernetes repository, exact `1.36.3-1.1` package versions, package holds, and kubelet enablement.
+- Ran the complete Kubernetes host-preparation playbook again; the recap reported `ok=37`, `changed=0`, `unreachable=0`, and `failed=0`, confirming idempotence on the canary.
 
 ## 2026-08-05
 

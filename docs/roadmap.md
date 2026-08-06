@@ -60,13 +60,14 @@ Verification gate: the versioned image runs locally, passes its health check, an
 - [x] Confirm that the Pod and Service networks do not overlap each other or the host network `192.168.0.0/24`.
 - [ ] Verify unique hostnames, MAC addresses, and `product_uuid` values on all Kubernetes nodes.
 - [ ] Verify required network connectivity and ports between the nodes.
-- [ ] Create an Ansible role for required kernel modules and `sysctl` settings.
-- [ ] Configure swap according to the selected kubelet policy.
-- [ ] Install and configure `containerd` with a cgroup driver compatible with kubelet.
-- [ ] Add the Kubernetes package repository and install pinned versions of `kubelet`, `kubeadm`, and `kubectl`.
-- [ ] Prevent unintended Kubernetes package upgrades.
+- [x] Create an Ansible role for required kernel modules and `sysctl` settings.
+- [x] Configure swap according to the selected kubelet policy.
+- [x] Install and configure `containerd` with the systemd cgroup driver and verify that its CRI plugin is active.
+- [x] Add the Kubernetes package repository and install pinned `1.36.3-1.1` versions of `kubelet`, `kubeadm`, and `kubectl`.
+- [x] Prevent unintended Kubernetes package upgrades with APT holds.
 - [ ] Run and review the relevant `kubeadm` preflight checks.
-- [ ] Run the host-preparation roles a second time and confirm `changed=0`.
+- [x] Run the host-preparation roles a second time on the `k8s-worker-01` canary and confirm `changed=0`.
+- [ ] Apply and verify the host-preparation roles on `k8s-cp-01` and `k8s-worker-02`.
 
 Verification gate: every node satisfies the selected Kubernetes version's prerequisites and the preparation roles are idempotent.
 
@@ -131,12 +132,12 @@ This project has one lab environment, so the Terraform configuration is not spli
 | 301 | `ubuntu-2404-cloud-template-uefi2023` | Current Ubuntu 24.04 template | — | 2 vCPU, 2 GB RAM, 20 GB disk | Verified; EFI `4m`, Secure Boot, Microsoft UEFI 2023 certificates |
 | 310 | `ansible-controller` | Ansible control node | `192.168.0.220/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Recreated from VMID 301; verified; Ansible Core operational |
 | 311 | `k8s-cp-01` | Planned control plane | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
-| 312 | `k8s-worker-01` | Ansible canary and planned worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned from VMID 301; connectivity verified; extended `common` role check passed |
+| 312 | `k8s-worker-01` | Ansible canary and planned worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned from VMID 301; connectivity and Kubernetes host preparation verified; idempotent |
 | 313 | `k8s-worker-02` | Planned worker | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
 
 All current and planned VMs use node `pve`, pool `terraform-lab`, bridge `vmbr0`, storage `local-lvm`, and gateway/DNS `192.168.0.1`.
 
-Terraform creates reachable Ubuntu VMs. Ansible configures their operating systems. `k8s-worker-01` is currently enabled as the canary host; the control-plane and second worker definitions remain disabled until the baseline workflow is verified.
+Terraform creates reachable Ubuntu VMs. Ansible configures their operating systems. `k8s-worker-01` is currently enabled and has validated the baseline and Kubernetes host-preparation workflow; the control-plane and second worker definitions remain disabled until the verified workflow is rolled out to them.
 
 ## Network and Address Plan
 
