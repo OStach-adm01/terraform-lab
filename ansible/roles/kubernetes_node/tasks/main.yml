@@ -44,7 +44,33 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Apply Kubernetes sysctl parameters
+
+- name: Apply Kubernetes sysctl parameters to the running kernel
+  when: not ansible_check_mode
+  block:
+    - name: Read current Kubernetes sysctl parameters
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/sysctl
+          - -n
+          - "{{ item.key }}"
+      loop: "{{ kubernetes_node_sysctl_parameters | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: kubernetes_node_current_sysctl
+      changed_when: false
+
+    - name: Set required Kubernetes sysctl parameters
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/sysctl
+          - -w
+          - "{{ item.item.key }}={{ item.item.value }}"
+      loop: "{{ kubernetes_node_current_sysctl.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
+      when: item.stdout | trim != item.item.value
+      changed_when: true
 
 - name: Disable swap persistently
   ansible.builtin.replace:
@@ -80,6 +106,14 @@
   when:
     - not kubernetes_swap_enabled
     - not ansible_check_mode
+
+- name: Ensure the containerd configuration directory exists
+  ansible.builtin.file:
+    path: /etc/containerd
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
 
 - name: Configure containerd
   ansible.builtin.template:
