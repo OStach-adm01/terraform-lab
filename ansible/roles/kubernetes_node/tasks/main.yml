@@ -16,6 +16,16 @@
     path: /usr/bin/containerd
   register: kubernetes_node_containerd_binary
 
+- name: Check whether the containerd configuration directory exists
+  ansible.builtin.stat:
+    path: /etc/containerd
+  register: kubernetes_node_containerd_directory
+
+- name: Check whether the containerd configuration file exists
+  ansible.builtin.stat:
+    path: /etc/containerd/config.toml
+  register: kubernetes_node_containerd_config_file
+
 - name: Install Kubernetes node packages
   ansible.builtin.apt:
     name: "{{ kubernetes_node_packages }}"
@@ -126,7 +136,10 @@
   notify: Restart containerd
   when: >-
     not ansible_check_mode
-    or kubernetes_node_containerd_binary.stat.exists
+    or (
+      kubernetes_node_containerd_binary.stat.exists
+      and kubernetes_node_containerd_directory.stat.exists
+    )
 
 - name: Ensure containerd is enabled and running
   ansible.builtin.systemd_service:
@@ -147,7 +160,10 @@
   changed_when: false
   when: >-
     not ansible_check_mode
-    or kubernetes_node_containerd_binary.stat.exists
+    or (
+      kubernetes_node_containerd_binary.stat.exists
+      and kubernetes_node_containerd_config_file.stat.exists
+    )
 
 - name: Verify the containerd cgroup driver
   ansible.builtin.assert:
@@ -157,7 +173,10 @@
     success_msg: Containerd uses the systemd cgroup driver
   when: >-
     not ansible_check_mode
-    or kubernetes_node_containerd_binary.stat.exists
+    or (
+      kubernetes_node_containerd_binary.stat.exists
+      and kubernetes_node_containerd_config_file.stat.exists
+    )
 
 - name: Read the containerd plugin status
   ansible.builtin.command:
@@ -166,7 +185,10 @@
   changed_when: false
   when: >-
     not ansible_check_mode
-    or kubernetes_node_containerd_binary.stat.exists
+    or (
+      kubernetes_node_containerd_binary.stat.exists
+      and kubernetes_node_containerd_config_file.stat.exists
+    )
 
 - name: Verify that the containerd CRI plugin is active
   ansible.builtin.assert:
@@ -178,7 +200,10 @@
     success_msg: The containerd CRI plugin is active
   when: >-
     not ansible_check_mode
-    or kubernetes_node_containerd_binary.stat.exists
+    or (
+      kubernetes_node_containerd_binary.stat.exists
+      and kubernetes_node_containerd_config_file.stat.exists
+    )
 
 - name: Ensure the APT keyring directory exists
   ansible.builtin.file:
