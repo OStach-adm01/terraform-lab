@@ -1,6 +1,6 @@
 # Roadmap
 
-Goal: build and document a homelab that demonstrates core Junior DevOps, SysOps, and SysAdmin skills.
+Goal: build and document a homelab for learning and understanding the technologies used to provision, configure, operate, and validate modern infrastructure.
 
 Each phase ends with a verification gate. A component is considered complete only after its configuration and observed behavior have both been checked.
 
@@ -32,7 +32,7 @@ Verification gate: all four VMs are reachable with the expected identity and con
 - [ ] Verify SSH connectivity and `ansible.builtin.ping` from `ansible-controller` to every managed node.
 - [ ] Gather and inspect facts from all managed nodes.
 - [ ] Verify passwordless privilege escalation with `become` on all managed nodes.
-- [ ] Create a `common` role for updates, base packages, time synchronization, users, and basic hardening.
+- [ ] Extend the `common` role with an update policy, user management, and basic hardening.
 - [x] Add the initial `common` role tasks for base packages and QEMU Guest Agent management.
 - [x] Extend the `common` role with timezone and `systemd-timesyncd` configuration.
 - [x] Apply the extended `common` role to `k8s-worker-01` (`changed=1`, no failures).
@@ -113,9 +113,12 @@ Verification gate: the application is reachable through ingress, handles configu
 - [ ] Add repeatable checks for `terraform fmt`, `terraform validate`, `tflint`, `ansible-lint`, and `yamllint`.
 - [ ] Add validation for Kubernetes manifests.
 - [ ] Decide whether checks run through a local script, Makefile, pre-commit hooks, or CI.
-- [ ] Extend the README with architecture, prerequisites, setup, verification, and troubleshooting instructions.
-- [ ] Add an architecture diagram showing Proxmox, Terraform, Ansible, Kubernetes networking, and application traffic.
-- [ ] Document architectural decisions, accepted risks, and current limitations.
+- [x] Add a project overview, current infrastructure status, and repository structure to the README.
+- [x] Add a diagram of the current and planned infrastructure architecture.
+- [x] Document the current key engineering decisions.
+- [ ] Add prerequisites, setup, verification, and troubleshooting instructions to the README.
+- [ ] Extend the architecture diagram with Kubernetes networking and application traffic.
+- [ ] Document accepted risks and current limitations.
 - [ ] Document backup and recovery procedures, including the single-control-plane limitation.
 - [ ] Document safe upgrade procedures for Terraform providers, Ansible dependencies, and Kubernetes components.
 - [ ] Document how to safely destroy and rebuild the lab.
@@ -135,7 +138,7 @@ This project has one lab environment, so the Terraform configuration is not spli
 | 312 | `k8s-worker-01` | Ansible canary and planned worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned from VMID 301; connectivity and Kubernetes host preparation verified; idempotent |
 | 313 | `k8s-worker-02` | Planned worker | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Not provisioned; definition retained with `enabled = false` |
 
-All current and planned VMs use node `pve`, pool `terraform-lab`, bridge `vmbr0`, storage `local-lvm`, and gateway/DNS `192.168.0.1`.
+All current and planned Terraform-managed instances use node `pve`, pool `terraform-lab`, bridge `vmbr0`, storage `local-lvm`, and gateway/DNS `192.168.0.1`.
 
 Terraform creates reachable Ubuntu VMs. Ansible configures their operating systems. `k8s-worker-01` is currently enabled and has validated the baseline and Kubernetes host-preparation workflow; the control-plane and second worker definitions remain disabled until the verified workflow is rolled out to them.
 
@@ -150,7 +153,7 @@ Terraform creates reachable Ubuntu VMs. Ansible configures their operating syste
 
 Gateway and DNS are `192.168.0.1`. The modem's DHCPv4 pool was reduced so that it ends below the Terraform-managed static range. Addresses `192.168.0.220-192.168.0.223` are therefore excluded from dynamic allocation; this separation must be preserved if either range is changed later.
 
-Pod CIDR and Service CIDR are intentionally undecided. They must not overlap `192.168.0.0/24` or each other.
+The Kubernetes Pod CIDR is `10.244.0.0/16` and the Service CIDR is `10.96.0.0/12`. Neither network overlaps the host network `192.168.0.0/24` or the other cluster network.
 
 ## SSH Trust Model
 
@@ -178,7 +181,9 @@ terraform-lab/
 │   ├── ansible.cfg
 │   ├── inventory/
 │   ├── playbooks/
-│   └── roles/                     # populated when the first role is created
+│   └── roles/
+│       ├── common/
+│       └── kubernetes_node/
 ├── kubernetes/                    # planned manifests and configuration
 └── docs/
 ```
