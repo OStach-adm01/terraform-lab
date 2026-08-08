@@ -2,7 +2,7 @@
 - name: Verify Kubernetes host identities
   hosts: k8s_cluster
   gather_facts: true
-  become: false
+  become: true
 
   tasks:
     - name: Verify required identity facts are available
@@ -12,7 +12,9 @@
           - ansible_default_ipv4.address is defined
           - ansible_default_ipv4.macaddress is defined
           - ansible_product_uuid is defined
-          - ansible_product_uuid | length > 0
+          - >-
+            (ansible_product_uuid | string | trim | lower)
+            not in ['na', 'none', '']
         fail_msg: >-
           Ansible could not gather all required identity facts
           for {{ inventory_hostname }}
