@@ -84,7 +84,9 @@ allows each layer to be validated before the next one is introduced.
 
 The lab currently has an operational Ansible controller and three fully
 prepared Kubernetes nodes. The complete host-preparation playbook is
-idempotent across the cluster, while Kubernetes bootstrap has not started yet.
+idempotent across the cluster. The environment has also passed a complete
+destroy-and-rebuild test using a newly created Ansible controller and a rotated
+controller SSH key. Kubernetes bootstrap has not started yet.
 
 | VMID | Name | Address | Resources | Current state |
 | ---: | --- | --- | --- | --- |
@@ -99,6 +101,10 @@ The verified preparation on every Kubernetes node includes required kernel
 modules and network parameters, disabled swap, containerd with the systemd
 cgroup driver, an active CRI plugin, and pinned Kubernetes packages. A repeated
 cluster-wide play reported no changes. Cluster bootstrap has not started yet.
+After the complete environment was destroyed, the controller was recreated
+first, its Ansible SSH key was regenerated, and the three Kubernetes nodes were
+then recreated and prepared again. The repeated Ansible run converged without
+changes, and the final Terraform plan reported no infrastructure drift.
 
 ## Technology Stack
 

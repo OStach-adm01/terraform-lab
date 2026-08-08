@@ -18,6 +18,7 @@ Each phase ends with a verification gate. A component is considered complete onl
 - [x] Add an explicit VM enable switch and retain the disabled Kubernetes definitions for later recreation.
 - [ ] Verify Cloud-Init, hostnames, networking, SSH, QEMU Guest Agent, and passwordless sudo on every new VM.
 - [x] Confirm a clean Terraform plan without drift after provisioning.
+- [x] Destroy and rebuild all Terraform-managed VMs in controlled stages, rotate the Ansible controller SSH key, reconverge the Kubernetes hosts, and confirm a final clean Terraform plan.
 - [ ] Complete the Terraform and infrastructure documentation.
 
 Verification gate: all four VMs are reachable with the expected identity and configuration, and Terraform reports no changes.
@@ -123,6 +124,11 @@ Verification gate: the application is reachable through ingress, handles configu
 - [ ] Document backup and recovery procedures, including the single-control-plane limitation.
 - [ ] Document safe upgrade procedures for Terraform providers, Ansible dependencies, and Kubernetes components.
 - [ ] Document how to safely destroy and rebuild the lab.
+
+The complete destroy-and-rebuild workflow has been tested successfully. A
+standalone operational procedure with prerequisites, verification points,
+recovery steps, and stop conditions still needs to be written before the
+documentation item is considered complete.
 
 Verification gate: a new reader can understand, validate, operate, troubleshoot, and safely rebuild the lab from the repository documentation.
 

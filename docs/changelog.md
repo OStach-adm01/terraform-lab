@@ -15,6 +15,16 @@
 - Ran the host-preparation playbook across the complete `k8s_cluster`. After the time-based APT cache refresh on `k8s-worker-01`, the repeated cluster-wide run reported `ok=37`, `changed=0`, `unreachable=0`, and `failed=0` for every node.
 - Confirmed that Terraform reports no changes after provisioning and configuration.
 
+### Full environment rebuild
+
+- Reviewed and applied a Terraform destroy plan containing only the four managed VMs, then verified their removal in Proxmox; the external golden image VMID 301 was retained.
+- Disabled the three Kubernetes VM definitions and recreated only `ansible-controller` (VMID 310).
+- Verified the replacement controller's new SSH host key, installed Git and Ansible Core, cloned the repository, and successfully ran the local Ansible inspection playbook.
+- Generated a new dedicated Ansible SSH key pair on the replacement controller and transferred only its public key to the Terraform workstation.
+- Re-enabled and recreated all three Kubernetes VMs with the new controller public key supplied through Cloud-Init.
+- Verified Ansible connectivity to the rebuilt nodes and ran the complete Kubernetes host-preparation playbook twice without failures; the repeated run confirmed convergence with no changes.
+- Completed the rebuild with a Terraform plan reporting `No changes`, confirming that the recreated infrastructure matches the declared configuration without drift.
+
 ## 2026-08-06
 
 ### Added
