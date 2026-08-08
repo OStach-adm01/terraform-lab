@@ -1,0 +1,94 @@
+---
+- name: Verify Kubernetes host identities
+  hosts: k8s_cluster
+  gather_facts: true
+  become: false
+
+  tasks:
+    - name: Verify required identity facts are available
+      ansible.builtin.assert:
+        that:
+          - ansible_hostname is defined
+          - ansible_default_ipv4.address is defined
+          - ansible_default_ipv4.macaddress is defined
+          - ansible_product_uuid is defined
+          - ansible_product_uuid | length > 0
+        fail_msg: >-
+          Ansible could not gather all required identity facts
+          for {{ inventory_hostname }}
+        success_msg: >-
+          All required identity facts are available
+          for {{ inventory_hostname }}
+
+    - name: Verify hostname and management address
+      ansible.builtin.assert:
+        that:
+          - ansible_hostname == inventory_hostname
+          - ansible_default_ipv4.address == ansible_host
+        fail_msg: >-
+          Host identity does not match inventory:
+          inventory={{ inventory_hostname }},
+          hostname={{ ansible_hostname }},
+          expected_address={{ ansible_host }},
+          detected_address={{ ansible_default_ipv4.address }}
+        success_msg: >-
+          Hostname and management address match inventory
+          for {{ inventory_hostname }}
+
+    - name: Record normalized host identity
+      ansible.builtin.set_fact:
+        kubernetes_host_identity:
+          hostname: "{{ ansible_hostname }}"
+          address: "{{ ansible_default_ipv4.address }}"
+          macaddress: "{{ ansible_default_ipv4.macaddress | lower }}"
+          product_uuid: "{{ ansible_product_uuid | lower }}"
+
+    - name: Display verified host identity
+      ansible.builtin.debug:
+        var: kubernetes_host_identity
+
+    - name: Verify unique identities across the Kubernetes cluster
+      ansible.builtin.assert:
+        that:
+          - >-
+            cluster_identities
+            | map(attribute='hostname')
+            | unique
+            | list
+            | length
+            == groups['k8s_cluster'] | length
+          - >-
+            cluster_identities
+            | map(attribute='address')
+            | unique
+            | list
+            | length
+            == groups['k8s_cluster'] | length
+          - >-
+            cluster_identities
+            | map(attribute='macaddress')
+            | unique
+            | list
+            | length
+            == groups['k8s_cluster'] | length
+          - >-
+            cluster_identities
+            | map(attribute='product_uuid')
+            | unique
+            | list
+            | length
+            == groups['k8s_cluster'] | length
+        fail_msg: >-
+          Duplicate hostname, address, MAC address, or product UUID
+          detected in the Kubernetes cluster
+        success_msg: >-
+          Every Kubernetes node has a unique hostname, address,
+          MAC address, and product UUID
+      vars:
+        cluster_identities: >-
+          {{
+            groups['k8s_cluster']
+            | map('extract', hostvars, 'kubernetes_host_identity')
+            | list
+          }}
+      run_once: true
