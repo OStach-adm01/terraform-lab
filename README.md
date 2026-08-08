@@ -40,31 +40,29 @@ flowchart LR
         controller["Ansible controller<br/>VMID 310 · 192.168.0.220"]
 
         subgraph cluster["Kubernetes cluster"]
-            cp["k8s-cp-01<br/>VMID 311 · 192.168.0.221<br/>Planned"]
-            worker1["k8s-worker-01<br/>VMID 312 · 192.168.0.222<br/>Prepared canary"]
-            worker2["k8s-worker-02<br/>VMID 313 · 192.168.0.223<br/>Planned"]
+            cp["k8s-cp-01<br/>VMID 311 · 192.168.0.221<br/>Prepared"]
+            worker1["k8s-worker-01<br/>VMID 312 · 192.168.0.222<br/>Prepared"]
+            worker2["k8s-worker-02<br/>VMID 313 · 192.168.0.223<br/>Prepared"]
         end
     end
 
     workstation -->|"Terraform provider"| api
     api --- template
     template -->|"Cloud-Init clone"| controller
-    template -.->|"Cloud-Init clone"| cp
+    template -->|"Cloud-Init clone"| cp
     template -->|"Cloud-Init clone"| worker1
-    template -.->|"Cloud-Init clone"| worker2
+    template -->|"Cloud-Init clone"| worker2
     workstation -->|"Git workflow"| controller
-    controller -.->|"Ansible"| cp
+    controller -->|"Ansible"| cp
     controller -->|"Ansible"| worker1
-    controller -.->|"Ansible"| worker2
+    controller -->|"Ansible"| worker2
 
     classDef active fill:#d5f5e3,stroke:#1e8449,color:#17202a;
-    classDef planned fill:#f2f3f4,stroke:#7f8c8d,color:#17202a,stroke-dasharray: 5 5;
-    class template,controller,worker1 active;
-    class cp,worker2 planned;
+    class template,controller,cp,worker1,worker2 active;
 ```
 
-Green components are currently available. Dashed grey nodes are defined in
-Terraform and Ansible inventory but are not yet provisioned.
+Green components are currently available. All three Kubernetes nodes are
+provisioned and have passed the Ansible host-preparation workflow.
 
 All Terraform-managed instances are cloned from a verified Ubuntu 24.04
 Cloud-Init template on Proxmox VE. Terraform manages their infrastructure
@@ -84,23 +82,23 @@ allows each layer to be validated before the next one is introduced.
 
 ## Current Status
 
-The lab currently has an operational Ansible controller and one fully prepared
-Kubernetes worker used as a canary. The control-plane node and second worker are
-the next machines planned for provisioning and Ansible configuration.
+The lab currently has an operational Ansible controller and three fully
+prepared Kubernetes nodes. The complete host-preparation playbook is
+idempotent across the cluster, while Kubernetes bootstrap has not started yet.
 
 | VMID | Name | Address | Resources | Current state |
 | ---: | --- | --- | --- | --- |
 | 300 | `ubuntu-2404-cloud-template` | — | 2 vCPU, 2 GB RAM, 20 GB disk | Legacy template retained temporarily as a rollback source |
 | 301 | `ubuntu-2404-cloud-template-uefi2023` | — | 2 vCPU, 2 GB RAM, 20 GB disk | Verified Ubuntu 24.04 template with Secure Boot |
 | 310 | `ansible-controller` | `192.168.0.220/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Provisioned and operational |
-| 311 | `k8s-cp-01` | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Defined but not provisioned |
+| 311 | `k8s-cp-01` | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Provisioned; Ansible preparation verified and idempotent |
 | 312 | `k8s-worker-01` | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned; Ansible preparation verified and idempotent |
-| 313 | `k8s-worker-02` | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Defined but not provisioned |
+| 313 | `k8s-worker-02` | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned; Ansible preparation verified and idempotent |
 
-The verified `k8s-worker-01` preparation includes required kernel modules and
-network parameters, disabled swap, containerd with the systemd cgroup driver,
-an active CRI plugin, and pinned Kubernetes packages. Cluster bootstrap has not
-started yet.
+The verified preparation on every Kubernetes node includes required kernel
+modules and network parameters, disabled swap, containerd with the systemd
+cgroup driver, an active CRI plugin, and pinned Kubernetes packages. A repeated
+cluster-wide play reported no changes. Cluster bootstrap has not started yet.
 
 ## Technology Stack
 

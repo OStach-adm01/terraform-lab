@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-08-08
+
+### Infrastructure
+
+- Enabled and provisioned `k8s-cp-01` (VMID 311) and `k8s-worker-02` (VMID 313) from the current Secure Boot template.
+- Completed the planned three-node Kubernetes host topology while retaining `k8s-worker-01` as the previously validated canary.
+
+### Verification
+
+- Ran the connectivity playbook across all Kubernetes nodes and verified SSH access, Ansible module execution, minimal fact gathering, and passwordless privilege escalation.
+- Applied the complete Kubernetes host-preparation playbook to `k8s-cp-01`; the initial run reported `changed=16`, and the repeated run reported `ok=37`, `changed=0`, `unreachable=0`, and `failed=0`.
+- Applied the same workflow to `k8s-worker-02` with matching initial and idempotent results.
+- Ran the host-preparation playbook across the complete `k8s_cluster`. After the time-based APT cache refresh on `k8s-worker-01`, the repeated cluster-wide run reported `ok=37`, `changed=0`, `unreachable=0`, and `failed=0` for every node.
+- Confirmed that Terraform reports no changes after provisioning and configuration.
+
 ## 2026-08-06
 
 ### Added
