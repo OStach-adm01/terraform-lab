@@ -1,0 +1,150 @@
+---
+- name: Verify the single-control-plane topology
+  ansible.builtin.assert:
+    that:
+      - groups['control_plane'] | length == 1
+      - inventory_hostname == groups['control_plane'][0]
+      - ansible_default_ipv4.address == ansible_host
+    fail_msg: >-
+      The control-plane role requires exactly one control-plane host
+      whose detected management address matches inventory
+    success_msg: >-
+      The inventory defines one control-plane host with the expected
+      management address
+
+- name: Inspect Kubernetes control-plane state
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/kubernetes/admin.conf
+    - /etc/kubernetes/manifests/kube-apiserver.yaml
+    - /var/lib/etcd/member
+  loop_control:
+    label: "{{ item }}"
+  register: kubernetes_control_plane_state
+
+- name: Verify that control-plane state is complete or absent
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          kubernetes_control_plane_state.results
+          | selectattr('stat.exists')
+          | list
+          | length
+        )
+        in [0, kubernetes_control_plane_state.results | length]
+    fail_msg: >-
+      Partial Kubernetes control-plane state was detected.
+      Stop and investigate it before attempting bootstrap
+    success_msg: >-
+      Kubernetes control-plane state is either complete or absent
+
+- name: Record whether the control plane is initialized
+  ansible.builtin.set_fact:
+    kubernetes_control_plane_initialized: >-
+      {{
+        (
+          kubernetes_control_plane_state.results
+          | selectattr('stat.exists')
+          | list
+          | length
+        )
+        == kubernetes_control_plane_state.results | length
+      }}
+
+- name: Ensure the Kubernetes configuration directory exists
+  ansible.builtin.file:
+    path: /etc/kubernetes
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+  when: not kubernetes_control_plane_initialized
+
+- name: Deploy the kubeadm initialization configuration
+  ansible.builtin.template:
+    src: kubeadm-init.yaml.j2
+    dest: "{{ kubernetes_control_plane_kubeadm_config_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+    validate: >-
+      /usr/bin/kubeadm config validate --config %s
+  when: not kubernetes_control_plane_initialized
+
+- name: Verify the bootstrap safety switch type
+  ansible.builtin.assert:
+    that:
+      - kubernetes_control_plane_bootstrap_enabled is boolean
+    fail_msg: >-
+      kubernetes_control_plane_bootstrap_enabled must be a boolean
+    success_msg: >-
+      The bootstrap safety switch has a valid boolean value
+
+- name: Initialize the Kubernetes control plane
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/kubeadm
+      - init
+      - --config
+      - "{{ kubernetes_control_plane_kubeadm_config_path }}"
+      - --skip-token-print
+      - --skip-certificate-key-print
+    creates: "{{ kubernetes_control_plane_admin_kubeconfig_source }}"
+  when:
+    - not kubernetes_control_plane_initialized
+    - kubernetes_control_plane_bootstrap_enabled
+
+- name: Inspect Kubernetes control-plane state after initialization
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/kubernetes/admin.conf
+    - /etc/kubernetes/manifests/kube-apiserver.yaml
+    - /var/lib/etcd/member
+  loop_control:
+    label: "{{ item }}"
+  register: kubernetes_control_plane_final_state
+
+- name: Record final control-plane initialization state
+  ansible.builtin.set_fact:
+    kubernetes_control_plane_initialized: >-
+      {{
+        (
+          kubernetes_control_plane_final_state.results
+          | selectattr('stat.exists')
+          | list
+          | length
+        )
+        == kubernetes_control_plane_final_state.results | length
+      }}
+
+- name: Verify that the requested control-plane bootstrap completed
+  ansible.builtin.assert:
+    that:
+      - kubernetes_control_plane_initialized
+    fail_msg: >-
+      Kubeadm returned without creating complete control-plane state
+    success_msg: >-
+      Kubernetes control-plane bootstrap completed successfully
+  when: kubernetes_control_plane_bootstrap_enabled
+
+- name: Create the administrator kubeconfig directory
+  ansible.builtin.file:
+    path: "{{ kubernetes_control_plane_admin_kubeconfig_directory }}"
+    owner: "{{ kubernetes_control_plane_admin_user }}"
+    group: "{{ kubernetes_control_plane_admin_group }}"
+    mode: "0700"
+    state: directory
+  when: kubernetes_control_plane_initialized
+
+- name: Install the administrator kubeconfig
+  ansible.builtin.copy:
+    src: "{{ kubernetes_control_plane_admin_kubeconfig_source }}"
+    dest: "{{ kubernetes_control_plane_admin_kubeconfig_path }}"
+    owner: "{{ kubernetes_control_plane_admin_user }}"
+    group: "{{ kubernetes_control_plane_admin_group }}"
+    mode: "0600"
+    remote_src: true
+  when: kubernetes_control_plane_initialized
