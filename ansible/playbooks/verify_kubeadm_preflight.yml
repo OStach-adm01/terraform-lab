@@ -1,0 +1,141 @@
+---
+- name: Verify kubeadm control-plane preflight
+  hosts: control_plane
+  gather_facts: true
+  become: true
+
+  vars:
+    kubernetes_kubeadm_init_template: >-
+      {{ playbook_dir }}/../roles/kubernetes_control_plane/templates/kubeadm-init.yaml.j2
+
+    kubernetes_cri_socket_path: >-
+      {{ kubernetes_cri_socket | regex_replace('^unix://', '') }}
+
+    kubernetes_cluster_state_markers:
+      - /etc/kubernetes/admin.conf
+      - /etc/kubernetes/manifests/kube-apiserver.yaml
+      - /var/lib/etcd/member
+
+  tasks:
+    - name: Verify the single-control-plane topology
+      ansible.builtin.assert:
+        that:
+          - groups['control_plane'] | length == 1
+          - inventory_hostname == groups['control_plane'][0]
+          - ansible_default_ipv4.address == ansible_host
+        fail_msg: >-
+          The kubeadm preflight playbook requires exactly one control-plane
+          host whose detected management address matches inventory
+        success_msg: >-
+          The inventory defines one control-plane host with the expected
+          management address
+
+    - name: Read the installed kubeadm version
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubeadm
+          - version
+          - -o
+          - short
+      register: kubernetes_kubeadm_version
+      changed_when: false
+      check_mode: false
+
+    - name: Verify the installed kubeadm version
+      ansible.builtin.assert:
+        that:
+          - kubernetes_kubeadm_version.stdout | trim == 'v' ~ kubernetes_version
+        fail_msg: >-
+          Installed kubeadm version
+          {{ kubernetes_kubeadm_version.stdout | trim }}
+          does not match expected version v{{ kubernetes_version }}
+        success_msg: >-
+          Installed kubeadm version matches v{{ kubernetes_version }}
+
+    - name: Inspect the containerd CRI socket
+      ansible.builtin.stat:
+        path: "{{ kubernetes_cri_socket_path }}"
+      register: kubernetes_cri_socket_status
+
+    - name: Verify the containerd CRI socket
+      ansible.builtin.assert:
+        that:
+          - kubernetes_cri_socket_status.stat.exists
+          - kubernetes_cri_socket_status.stat.issock | default(false)
+        fail_msg: >-
+          The expected containerd CRI socket
+          {{ kubernetes_cri_socket_path }} is missing or is not a socket
+        success_msg: >-
+          The expected containerd CRI socket is available
+
+    - name: Inspect existing Kubernetes cluster state
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: "{{ kubernetes_cluster_state_markers }}"
+      loop_control:
+        label: "{{ item }}"
+      register: kubernetes_existing_cluster_state
+
+    - name: Verify that the control plane is not initialized
+      ansible.builtin.assert:
+        that:
+          - >-
+            kubernetes_existing_cluster_state.results
+            | selectattr('stat.exists')
+            | list
+            | length
+            == 0
+        fail_msg: >-
+          Existing Kubernetes control-plane state was detected.
+          Do not run init preflight until the existing or partial cluster
+          state has been investigated
+        success_msg: >-
+          No existing Kubernetes control-plane state was detected
+
+    - name: Render the kubeadm init configuration in memory
+      ansible.builtin.set_fact:
+        kubernetes_kubeadm_init_configuration: >-
+          {{
+            lookup(
+              'ansible.builtin.template',
+              kubernetes_kubeadm_init_template
+            )
+          }}
+
+    - name: Display the rendered kubeadm init configuration
+      ansible.builtin.debug:
+        msg: "{{ kubernetes_kubeadm_init_configuration.splitlines() }}"
+
+    - name: Run kubeadm init preflight in dry-run mode
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubeadm
+          - init
+          - phase
+          - preflight
+          - --config
+          - /dev/stdin
+          - --dry-run
+        stdin: "{{ kubernetes_kubeadm_init_configuration }}"
+        stdin_add_newline: true
+      register: kubernetes_kubeadm_preflight
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Display kubeadm preflight output
+      ansible.builtin.debug:
+        msg:
+          stdout: "{{ kubernetes_kubeadm_preflight.stdout_lines }}"
+          stderr: "{{ kubernetes_kubeadm_preflight.stderr_lines }}"
+
+    - name: Verify kubeadm preflight result
+      ansible.builtin.assert:
+        that:
+          - kubernetes_kubeadm_preflight.rc == 0
+        fail_msg: >-
+          Kubeadm preflight failed with return code
+          {{ kubernetes_kubeadm_preflight.rc }}.
+          Review the displayed stdout and stderr before continuing
+        success_msg: >-
+          Kubeadm preflight completed successfully in dry-run mode
