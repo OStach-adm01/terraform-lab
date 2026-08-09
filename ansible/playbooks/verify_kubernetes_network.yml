@@ -1,0 +1,164 @@
+---
+- name: Verify Kubernetes pre-bootstrap networking
+  hosts: k8s_cluster
+  gather_facts: true
+  become: false
+
+  vars:
+    kubernetes_prebootstrap_free_ports:
+      control_plane:
+        - 6443
+        - 2379
+        - 2380
+        - 10250
+        - 10257
+        - 10259
+
+      workers:
+        - 10250
+        - 10256
+
+  tasks:
+    - name: Verify required network facts are available
+      ansible.builtin.assert:
+        that:
+          - ansible_default_ipv4.address is defined
+          - ansible_default_ipv4.interface is defined
+          - ansible_default_ipv4.gateway is defined
+          - ansible_default_ipv4.address == ansible_host
+        fail_msg: >-
+          Required network facts are missing or the detected management
+          address does not match inventory for {{ inventory_hostname }}
+        success_msg: >-
+          Required network facts are available and the management
+          address matches inventory for {{ inventory_hostname }}
+
+    - name: Record Kubernetes peer nodes
+      ansible.builtin.set_fact:
+        kubernetes_network_peers: >-
+          {{
+            groups['k8s_cluster']
+            | reject('equalto', inventory_hostname)
+            | list
+          }}
+
+    - name: Display expected peer communication
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} at {{ ansible_host }}
+          must reach {{ item }} at {{ hostvars[item].ansible_host }}
+      loop: "{{ kubernetes_network_peers }}"
+      loop_control:
+        label: "{{ inventory_hostname }} -> {{ item }}"
+
+    - name: Inspect the route to every Kubernetes peer
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/ip
+          - route
+          - get
+          - "{{ hostvars[item].ansible_host }}"
+      loop: "{{ kubernetes_network_peers }}"
+      loop_control:
+        label: "{{ inventory_hostname }} -> {{ item }}"
+      register: kubernetes_peer_routes
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Verify the route and source address to every Kubernetes peer
+      ansible.builtin.assert:
+        that:
+          - item.rc == 0
+          - hostvars[item.item].ansible_host in item.stdout
+          - "('src ' ~ ansible_host) in item.stdout"
+        fail_msg: >-
+          {{ inventory_hostname }} does not have the expected route
+          to {{ item.item }} at {{ hostvars[item.item].ansible_host }}.
+          Command output: {{ item.stdout | default('') }}
+          Command error: {{ item.stderr | default('') }}
+        success_msg: >-
+          {{ inventory_hostname }} reaches {{ item.item }}
+          using the expected source address {{ ansible_host }}
+      loop: "{{ kubernetes_peer_routes.results }}"
+      loop_control:
+        label: "{{ inventory_hostname }} -> {{ item.item }}"
+
+    - name: Test ICMP connectivity to every Kubernetes peer
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/ping
+          - -c
+          - "1"
+          - -W
+          - "2"
+          - "{{ hostvars[item].ansible_host }}"
+      loop: "{{ kubernetes_network_peers }}"
+      loop_control:
+        label: "{{ inventory_hostname }} -> {{ item }}"
+      register: kubernetes_peer_pings
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Verify ICMP connectivity to every Kubernetes peer
+      ansible.builtin.assert:
+        that:
+          - item.rc == 0
+        fail_msg: >-
+          {{ inventory_hostname }} cannot reach {{ item.item }}
+          at {{ hostvars[item.item].ansible_host }} using ICMP.
+          Command output: {{ item.stdout | default('') }}
+          Command error: {{ item.stderr | default('') }}
+        success_msg: >-
+          {{ inventory_hostname }} can reach {{ item.item }}
+          at {{ hostvars[item.item].ansible_host }} using ICMP
+      loop: "{{ kubernetes_peer_pings.results }}"
+      loop_control:
+        label: "{{ inventory_hostname }} -> {{ item.item }}"
+
+    - name: Select required free ports for the node role
+      ansible.builtin.set_fact:
+        kubernetes_node_required_free_ports: >-
+          {{
+            kubernetes_prebootstrap_free_ports.control_plane
+            if inventory_hostname in groups['control_plane']
+            else kubernetes_prebootstrap_free_ports.workers
+          }}
+
+    - name: Inspect required Kubernetes ports
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/ss
+          - -H
+          - -lnt
+          - sport
+          - "="
+          - ":{{ item }}"
+      loop: "{{ kubernetes_node_required_free_ports }}"
+      loop_control:
+        label: "{{ inventory_hostname }}:{{ item }}"
+      register: kubernetes_required_port_listeners
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      become: true
+
+    - name: Verify required Kubernetes ports are available
+      ansible.builtin.assert:
+        that:
+          - item.rc == 0
+          - item.stderr | trim | length == 0
+          - item.stdout | trim | length == 0
+        fail_msg: >-
+          TCP port {{ item.item }} is already occupied on
+          {{ inventory_hostname }}.
+          Listener information: {{ item.stdout | default('') }}
+          Command error: {{ item.stderr | default('') }}
+        success_msg: >-
+          TCP port {{ item.item }} is available on
+          {{ inventory_hostname }}
+      loop: "{{ kubernetes_required_port_listeners.results }}"
+      loop_control:
+        label: "{{ inventory_hostname }}:{{ item.item }}"
+        
