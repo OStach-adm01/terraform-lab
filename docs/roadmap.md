@@ -59,14 +59,14 @@ Verification gate: the versioned image runs locally, passes its health check, an
 
 - [x] Select and document Kubernetes `1.36.3`, containerd, Calico `3.32.1`, Pod CIDR `10.244.0.0/16`, and Service CIDR `10.96.0.0/12`.
 - [x] Confirm that the Pod and Service networks do not overlap each other or the host network `192.168.0.0/24`.
-- [ ] Verify unique hostnames, MAC addresses, and `product_uuid` values on all Kubernetes nodes.
-- [ ] Verify required network connectivity and ports between the nodes.
+- [x] Verify expected and unique hostnames, management addresses, MAC addresses, and `product_uuid` values on all Kubernetes nodes through a read-only Ansible playbook.
+- [ ] Verify required network connectivity and ports between the nodes through a repeatable Ansible playbook.
 - [x] Create an Ansible role for required kernel modules and `sysctl` settings.
 - [x] Configure swap according to the selected kubelet policy.
 - [x] Install and configure `containerd` with the systemd cgroup driver and verify that its CRI plugin is active.
 - [x] Add the Kubernetes package repository and install pinned `1.36.3-1.1` versions of `kubelet`, `kubeadm`, and `kubectl`.
 - [x] Prevent unintended Kubernetes package upgrades with APT holds.
-- [ ] Run and review the relevant `kubeadm` preflight checks.
+- [ ] Run and review the relevant `kubeadm` preflight checks through Ansible before cluster initialization.
 - [x] Run the host-preparation roles a second time on the `k8s-worker-01` canary and confirm `changed=0`.
 - [x] Apply and verify the host-preparation roles on `k8s-cp-01` and `k8s-worker-02`.
 - [x] Run the host-preparation playbook across `k8s_cluster` and confirm `ok=37`, `changed=0`, `unreachable=0`, and `failed=0` on every node.
@@ -115,6 +115,7 @@ Verification gate: the application is reachable through ingress, handles configu
 - [ ] Add repeatable checks for `terraform fmt`, `terraform validate`, `tflint`, `ansible-lint`, and `yamllint`.
 - [ ] Add validation for Kubernetes manifests.
 - [ ] Decide whether checks run through a local script, Makefile, pre-commit hooks, or CI.
+- [ ] Provide a documented Ansible verification sequence that can be run after cloning the repository onto a rebuilt controller.
 - [x] Add a project overview, current infrastructure status, and repository structure to the README.
 - [x] Add a diagram of the current and planned infrastructure architecture.
 - [x] Document the current key engineering decisions.

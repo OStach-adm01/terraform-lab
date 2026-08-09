@@ -101,6 +101,9 @@ The verified preparation on every Kubernetes node includes required kernel
 modules and network parameters, disabled swap, containerd with the systemd
 cgroup driver, an active CRI plugin, and pinned Kubernetes packages. A repeated
 cluster-wide play reported no changes. Cluster bootstrap has not started yet.
+The versioned host-identity verification also confirms that every Kubernetes
+node has the expected hostname and management address and a unique hostname,
+IPv4 address, MAC address, and product UUID.
 After the complete environment was destroyed, the controller was recreated
 first, its Ansible SSH key was regenerated, and the three Kubernetes nodes were
 then recreated and prepared again. The repeated Ansible run converged without
@@ -142,6 +145,15 @@ is applied to the remaining nodes.
 A successful command alone does not complete a stage. The resulting state is
 inspected, and configuration-management runs are repeated to confirm that a
 converged host reports no further changes.
+
+### Automate verification with Ansible
+
+Host, network, Kubernetes preflight, and post-bootstrap checks should be
+implemented as versioned Ansible playbooks whenever practical. A rebuilt
+controller should be able to clone the repository and reproduce both
+configuration and validation through a short, reviewable sequence. Ad-hoc
+commands remain useful for investigation, but verified checks should be moved
+into repeatable automation.
 
 ### Pin important versions
 

@@ -2,6 +2,12 @@
 
 ## 2026-08-08
 
+### Added
+
+- Added the read-only `verify_kubernetes_hosts.yml` playbook to collect and display normalized Kubernetes node identities.
+- Added cluster-wide assertions for expected hostnames and management addresses and for unique hostnames, IPv4 addresses, MAC addresses, and product UUIDs.
+- Established a project direction to implement host, network, kubeadm preflight, and post-bootstrap verification primarily as versioned Ansible playbooks so a rebuilt controller can reproduce the validation workflow after cloning the repository.
+
 ### Infrastructure
 
 - Enabled and provisioned `k8s-cp-01` (VMID 311) and `k8s-worker-02` (VMID 313) from the current Secure Boot template.
@@ -9,6 +15,9 @@
 
 ### Verification
 
+- The initial identity run correctly stopped because unprivileged fact gathering returned `NA` instead of the virtual machine product UUID on every node.
+- Enabled privilege escalation for read-only hardware fact gathering and strengthened validation to reject unavailable UUID values.
+- Repeated the identity playbook successfully. Every node matched its inventory hostname and management address, all MAC addresses and product UUIDs were unique, and the play recap reported `changed=0`, `unreachable=0`, and `failed=0` across the cluster.
 - Ran the connectivity playbook across all Kubernetes nodes and verified SSH access, Ansible module execution, minimal fact gathering, and passwordless privilege escalation.
 - Applied the complete Kubernetes host-preparation playbook to `k8s-cp-01`; the initial run reported `changed=16`, and the repeated run reported `ok=37`, `changed=0`, `unreachable=0`, and `failed=0`.
 - Applied the same workflow to `k8s-worker-02` with matching initial and idempotent results.
