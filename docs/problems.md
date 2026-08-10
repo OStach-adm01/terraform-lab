@@ -114,3 +114,24 @@ The lab standard was updated to Kubernetes `1.36.3`, and the role now installs a
 An unconditional repository-specific cache refresh could report a change on every execution even when the repository configuration was unchanged. This obscured the expected `changed=0` result of the second host-preparation run.
 
 The signing-key and repository tasks now register whether they changed. The cache is refreshed immediately when either input changes; otherwise, a one-hour cache validity window is used. The final repeated play on `k8s-worker-01` reported `ok=37`, `changed=0`, `unreachable=0`, and `failed=0`.
+
+## 5. Functional cluster verification raced ServiceAccount creation
+
+Status: resolved on 2026-08-10.
+
+After the single control-plane node was rebooted, all read-only recovery checks
+passed, but the functional networking test failed while creating its temporary
+Pods. The playbook created a namespace and immediately submitted Pod resources
+that implicitly used the namespace's `default` ServiceAccount. The namespace
+controller had not created that account yet, so admission rejected both Pods:
+
+```text
+serviceaccount "default" not found
+```
+
+The cleanup task in the Ansible `always` block removed the partially created
+namespace and Service. The test manifest now creates a dedicated
+`network-verification` ServiceAccount before its Pods, assigns that account
+explicitly, and disables automatic token mounting because the test does not
+need Kubernetes API credentials. A repeated functional verification completed
+with `ok=22`, `changed=2`, `unreachable=0`, and `failed=0`.

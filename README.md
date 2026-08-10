@@ -216,11 +216,11 @@ variables are intentionally excluded from version control.
 
 ## Roadmap
 
-Development is organized into verified phases. Kubernetes bootstrap and
-functional cluster networking verification are complete. The remaining cluster
-bootstrap gate is a controlled reboot and recovery test. Later phases cover
-container application development, cluster services, application deployment,
-automated quality checks, and lifecycle documentation.
+Development is organized into verified phases. Kubernetes bootstrap,
+functional cluster networking verification, and controlled node recovery tests
+are complete. The next phases cover container application development, cluster
+services, application deployment, automated quality checks, and lifecycle
+documentation.
 
 See [docs/roadmap.md](docs/roadmap.md) for the complete plan, current progress,
 and the verification gate for each phase.
@@ -235,6 +235,8 @@ and the verification gate for each phase.
   and implemented solutions.
 - [Ubuntu golden image](docs/ubuntu-golden-image.md) — template configuration,
   cleanup, and verification.
+- [Reproduce the lab](docs/environment-setup.md) — prerequisites, local
+  adaptation, provisioning, Kubernetes bootstrap, and final verification.
 
 ## Security Notes
 
@@ -248,5 +250,6 @@ and the verification gate for each phase.
 - Addresses documented in this repository belong to a private laboratory
   network and are not public endpoints.
 
-Reproduction and recovery instructions will be added after the environment and
-its lifecycle procedures are complete and verified.
+The reproduction guide documents the currently verified provisioning and
+bootstrap workflow. It must be updated whenever the infrastructure contract,
+key handling, or Kubernetes bootstrap sequence changes.

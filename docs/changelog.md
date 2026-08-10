@@ -8,6 +8,8 @@
 - Added the guarded `kubernetes_cni` role and playbook for version-pinned Calico `3.32.1` installation through the Tigera Operator, including live cluster network validation and readiness checks.
 - Added the guarded `kubernetes_worker` role and serial worker playbook with local and API state consistency checks, short-lived join credentials, post-join validation, and guaranteed token cleanup.
 - Added `verify_kubernetes_cluster.yml` for repeatable control-plane, node, system component, cluster DNS, Service ClusterIP, and cross-worker Pod connectivity verification.
+- Added a complete environment reproduction guide for a new user, covering Proxmox and template prerequisites, repository adaptation, local secrets, staged controller and node provisioning, controller key generation, scalable worker definitions, Kubernetes bootstrap, and functional verification.
+- Documented the tested Proxmox API permission profile: the dedicated `terraform-lab` role uses the `PVEAdmin` privilege set plus `Pool.Audit` within the lab pool, with the source template included in the same permitted scope for cloning.
 
 ### Infrastructure
 
@@ -24,6 +26,8 @@
 - Confirmed that all three nodes are `Ready` with Kubernetes `1.36.3`, the expected management addresses, and containerd `2.2.1`.
 - Confirmed that Calico node and CSI pods and kube-proxy are running on every Kubernetes node, with CoreDNS, control-plane components, Calico controllers, and the Tigera Operator healthy.
 - Ran the functional cluster verification successfully. A temporary server Pod on `k8s-worker-01` and client Pod on `k8s-worker-02` verified cluster DNS, Service ClusterIP routing, and direct cross-worker Pod connectivity; the temporary namespace was removed afterward. The expected recap was `ok=22`, `changed=2`, `unreachable=0`, and `failed=0`, with both changes representing creation and cleanup of test resources.
+- Rebooted `k8s-worker-01`, `k8s-worker-02`, and finally the single control-plane node in a controlled sequence. After every restart, all three nodes and required system components returned to readiness and the complete functional verification passed.
+- The control-plane recovery test exposed a race between namespace creation and automatic creation of its default ServiceAccount. The verification manifest now creates a dedicated unprivileged ServiceAccount explicitly, disables token mounting, and no longer depends on namespace-controller timing.
 
 ## 2026-08-08
 

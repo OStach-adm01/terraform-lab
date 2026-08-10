@@ -83,7 +83,7 @@ Verification gate: every node satisfies the selected Kubernetes version's prereq
 - [x] Confirm that all nodes reach the `Ready` state.
 - [x] Verify direct Pod-to-Pod connectivity across the two worker nodes through a repeatable Ansible playbook.
 - [x] Verify DNS resolution and Service ClusterIP routing from inside a Pod.
-- [ ] Reboot nodes in a controlled sequence and confirm that the cluster recovers.
+- [x] Reboot both workers and the single control-plane node in a controlled sequence and confirm full cluster recovery after every restart.
 
 Verification gate: the control plane and both workers are healthy, cluster networking and DNS work, and the cluster survives controlled node reboots.
 
@@ -115,7 +115,7 @@ Verification gate: the application is reachable through ingress, handles configu
 - [ ] Add repeatable checks for `terraform fmt`, `terraform validate`, `tflint`, `ansible-lint`, and `yamllint`.
 - [ ] Add validation for Kubernetes manifests.
 - [ ] Decide whether checks run through a local script, Makefile, pre-commit hooks, or CI.
-- [ ] Provide a documented Ansible verification sequence that can be run after cloning the repository onto a rebuilt controller.
+- [x] Provide a documented Ansible verification sequence that can be run after cloning the repository onto a rebuilt controller.
 - [x] Add a project overview, current infrastructure status, and repository structure to the README.
 - [x] Add a diagram of the current and planned infrastructure architecture.
 - [x] Document the current key engineering decisions.
@@ -124,14 +124,14 @@ Verification gate: the application is reachable through ingress, handles configu
 - [ ] Document accepted risks and current limitations.
 - [ ] Document backup and recovery procedures, including the single-control-plane limitation.
 - [ ] Document safe upgrade procedures for Terraform providers, Ansible dependencies, and Kubernetes components.
-- [ ] Document how to safely destroy and rebuild the lab.
+- [x] Document how a new user can adapt the repository and reproduce the complete lab in a separate Proxmox environment.
 
-The complete destroy-and-rebuild workflow has been tested successfully. A
-standalone operational procedure with prerequisites, verification points,
-recovery steps, and stop conditions still needs to be written before the
-documentation item is considered complete.
+The complete destroy-and-rebuild workflow has been tested successfully. The
+environment reproduction guide documents how a new user can adapt the
+repository, provision a separate lab, and execute the complete Ansible
+verification and bootstrap sequence from a fresh controller.
 
-Verification gate: a new reader can understand, validate, operate, troubleshoot, and safely rebuild the lab from the repository documentation.
+Verification gate: a new reader can understand, reproduce, validate, operate, and troubleshoot the lab from the repository documentation.
 
 ## Current and Planned Infrastructure
 
