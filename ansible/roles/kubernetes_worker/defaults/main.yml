@@ -1,0 +1,8 @@
+---
+kubernetes_worker_join_enabled: false
+kubernetes_worker_join_token_ttl: 30m
+
+kubernetes_worker_kubelet_config_path: /etc/kubernetes/kubelet.conf
+kubernetes_worker_kubelet_client_certificate_path: >-
+  /var/lib/kubelet/pki/kubelet-client-current.pem
+kubernetes_worker_control_plane_kubeconfig_path: /home/devops/.kube/config

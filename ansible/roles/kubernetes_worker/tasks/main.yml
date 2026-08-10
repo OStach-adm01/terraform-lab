@@ -1,0 +1,143 @@
+---
+- name: Verify the worker role scope
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname in groups['workers']
+      - groups['control_plane'] | length == 1
+      - ansible_hostname == inventory_hostname
+      - ansible_default_ipv4.address == ansible_host
+    fail_msg: >-
+      The worker role is running on an unexpected host or its identity
+      does not match inventory
+    success_msg: >-
+      The worker identity and inventory scope are correct
+
+- name: Verify the worker join safety switch type
+  ansible.builtin.assert:
+    that:
+      - kubernetes_worker_join_enabled is boolean
+    fail_msg: >-
+      kubernetes_worker_join_enabled must be a boolean
+    success_msg: >-
+      The worker join safety switch has a valid boolean value
+
+- name: Inspect local Kubernetes worker state
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ kubernetes_worker_kubelet_config_path }}"
+    - "{{ kubernetes_worker_kubelet_client_certificate_path }}"
+  loop_control:
+    label: "{{ item }}"
+  register: kubernetes_worker_local_state
+
+- name: Verify that local worker state is complete or absent
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          kubernetes_worker_local_state.results
+          | selectattr('stat.exists')
+          | list
+          | length
+        )
+        in [0, kubernetes_worker_local_state.results | length]
+    fail_msg: >-
+      Partial Kubernetes worker state was detected.
+      Stop and investigate before attempting kubeadm join
+    success_msg: >-
+      Local Kubernetes worker state is either complete or absent
+
+- name: Record whether the worker is locally initialized
+  ansible.builtin.set_fact:
+    kubernetes_worker_initialized: >-
+      {{
+        (
+          kubernetes_worker_local_state.results
+          | selectattr('stat.exists')
+          | list
+          | length
+        )
+        == kubernetes_worker_local_state.results | length
+      }}
+
+- name: Inspect the worker object in the Kubernetes API
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/kubectl
+      - --kubeconfig
+      - "{{ kubernetes_worker_control_plane_kubeconfig_path }}"
+      - get
+      - "node/{{ inventory_hostname }}"
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  register: kubernetes_worker_api_state
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Verify the worker API inspection result
+  ansible.builtin.assert:
+    that:
+      - >-
+        kubernetes_worker_api_state.rc == 0
+        or
+        (
+          kubernetes_worker_api_state.rc == 1
+          and
+          kubernetes_worker_api_state.stderr
+          is search('NotFound')
+        )
+    fail_msg: >-
+      The Kubernetes API inspection failed for a reason other than
+      the worker node being absent.
+      Review kubectl stderr before attempting kubeadm join
+    success_msg: >-
+      The Kubernetes API either contains the worker node or confirms
+      that it is absent
+
+- name: Verify consistency between local and cluster state
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          kubernetes_worker_initialized
+          and kubernetes_worker_api_state.rc == 0
+        )
+        or
+        (
+          not kubernetes_worker_initialized
+          and kubernetes_worker_api_state.rc != 0
+        )
+    fail_msg: >-
+      Local worker state and the Kubernetes API disagree.
+      Do not join or reset the node until the stale state is investigated
+    success_msg: >-
+      Local worker state agrees with the Kubernetes API
+
+- name: Verify that Calico is available
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/kubectl
+      - --kubeconfig
+      - "{{ kubernetes_worker_control_plane_kubeconfig_path }}"
+      - wait
+      - --for=condition=Available
+      - tigerastatus.operator.tigera.io/calico
+      - --timeout=30s
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  changed_when: false
+  check_mode: false
+
+- name: Verify that the control-plane node is Ready
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/kubectl
+      - --kubeconfig
+      - "{{ kubernetes_worker_control_plane_kubeconfig_path }}"
+      - wait
+      - --for=condition=Ready
+      - "node/{{ groups['control_plane'][0] }}"
+      - --timeout=30s
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  changed_when: false
+  check_mode: false
