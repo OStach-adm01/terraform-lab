@@ -223,7 +223,7 @@
               - "{{ kubernetes_cluster_verification_kubeconfig }}"
               - apply
               - -f
-              - -
+              - "-"
             stdin: |
               ---
               apiVersion: v1
