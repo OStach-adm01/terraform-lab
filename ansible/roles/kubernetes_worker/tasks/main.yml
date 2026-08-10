@@ -16,6 +16,8 @@
   ansible.builtin.assert:
     that:
       - kubernetes_worker_join_enabled is boolean
+      - kubernetes_worker_join_token_ttl is string
+      - kubernetes_worker_join_token_ttl is match('^[1-9][0-9]*[smh]$')
     fail_msg: >-
       kubernetes_worker_join_enabled must be a boolean
     success_msg: >-
@@ -141,3 +143,132 @@
   delegate_to: "{{ groups['control_plane'][0] }}"
   changed_when: false
   check_mode: false
+
+- name: Create a short-lived worker join command
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/kubeadm
+      - token
+      - create
+      - --kubeconfig
+      - "{{ kubernetes_worker_control_plane_kubeconfig_path }}"
+      - "--ttl={{ kubernetes_worker_join_token_ttl }}"
+      - "--description=ansible-join-{{ inventory_hostname }}"
+      - --print-join-command
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  register: kubernetes_worker_join_command
+  changed_when: true
+  no_log: true
+  when:
+    - kubernetes_worker_join_enabled
+    - not kubernetes_worker_initialized
+    - not ansible_check_mode
+
+- name: Verify the generated worker join command
+  ansible.builtin.assert:
+    that:
+      - kubernetes_worker_join_command.stdout.split() | length >= 7
+      - kubernetes_worker_join_command.stdout.split()[0] == 'kubeadm'
+      - kubernetes_worker_join_command.stdout.split()[1] == 'join'
+      - >-
+        kubernetes_worker_join_command.stdout.split()[2]
+        ==
+        (
+          hostvars[groups['control_plane'][0]].ansible_host
+          ~ ':'
+          ~ kubernetes_api_server_port
+        )
+      - "'--token' in kubernetes_worker_join_command.stdout.split()"
+      - >-
+        '--discovery-token-ca-cert-hash'
+        in kubernetes_worker_join_command.stdout.split()
+    fail_msg: >-
+      Kubeadm did not generate the expected secure worker join command
+    success_msg: >-
+      Kubeadm generated a worker join command with token and CA pinning
+  no_log: true
+  when:
+    - kubernetes_worker_join_enabled
+    - not kubernetes_worker_initialized
+    - not ansible_check_mode
+
+- name: Record the short-lived worker join token
+  ansible.builtin.set_fact:
+    kubernetes_worker_join_token: >-
+      {{
+        kubernetes_worker_join_command.stdout.split()[
+          kubernetes_worker_join_command.stdout.split().index('--token') + 1
+        ]
+      }}
+  no_log: true
+  when:
+    - kubernetes_worker_join_enabled
+    - not kubernetes_worker_initialized
+    - not ansible_check_mode
+
+- name: Join the Kubernetes worker
+  when:
+    - kubernetes_worker_join_enabled
+    - not kubernetes_worker_initialized
+    - not ansible_check_mode
+  block:
+    - name: Run kubeadm join
+      ansible.builtin.command:
+        argv: >-
+          {{
+            ['/usr/bin/kubeadm']
+            + kubernetes_worker_join_command.stdout.split()[1:]
+          }}
+        creates: "{{ kubernetes_worker_kubelet_config_path }}"
+      no_log: true
+
+    - name: Inspect local worker state after join
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ kubernetes_worker_kubelet_config_path }}"
+        - "{{ kubernetes_worker_kubelet_client_certificate_path }}"
+      loop_control:
+        label: "{{ item }}"
+      register: kubernetes_worker_final_local_state
+
+    - name: Verify complete local worker state after join
+      ansible.builtin.assert:
+        that:
+          - >-
+            kubernetes_worker_final_local_state.results
+            | selectattr('stat.exists')
+            | list
+            | length
+            == kubernetes_worker_final_local_state.results | length
+        fail_msg: >-
+          Kubeadm join returned without creating complete worker state
+        success_msg: >-
+          Kubeadm created complete local worker state
+
+    - name: Wait for the worker node to become Ready
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_worker_control_plane_kubeconfig_path }}"
+          - wait
+          - --for=condition=Ready
+          - "node/{{ inventory_hostname }}"
+          - --timeout=600s
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      changed_when: false
+
+  always:
+    - name: Delete the short-lived worker join token
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubeadm
+          - token
+          - delete
+          - "{{ kubernetes_worker_join_token }}"
+          - --kubeconfig
+          - "{{ kubernetes_worker_control_plane_kubeconfig_path }}"
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      changed_when: true
+      no_log: true
