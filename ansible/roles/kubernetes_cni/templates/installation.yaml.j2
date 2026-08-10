@@ -12,3 +12,9 @@ spec:
         encapsulation: VXLANCrossSubnet
         natOutgoing: Enabled
         nodeSelector: all()
+        allowedUses:
+          - Workload
+          - Tunnel
+        assignmentMode: Automatic
+        disableBGPExport: false
+        disableNewAllocations: false
