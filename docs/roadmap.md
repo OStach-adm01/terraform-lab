@@ -129,7 +129,10 @@ Verification gate: the application is reachable through ingress, handles configu
 The complete destroy-and-rebuild workflow has been tested successfully. The
 environment reproduction guide documents how a new user can adapt the
 repository, provision a separate lab, and execute the complete Ansible
-verification and bootstrap sequence from a fresh controller.
+verification and bootstrap sequence from a fresh controller. The documented
+sequence was subsequently executed end to end from a destroyed
+Terraform-managed VM state and converged to the declared environment without
+remaining Terraform or Ansible changes.
 
 Verification gate: a new reader can understand, reproduce, validate, operate, and troubleshoot the lab from the repository documentation.
 

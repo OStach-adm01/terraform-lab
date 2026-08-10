@@ -7,6 +7,12 @@ three-node Kubernetes cluster.
 The repository automates virtual machines and their configuration. It does not
 install Proxmox VE or create the source Cloud-Init template automatically.
 
+The complete workflow was validated on 2026-08-10 after all four
+Terraform-managed VMs were destroyed. Following this guide step by step
+recreated the controller and Kubernetes nodes, restored the cluster to its
+declared and functional state, and produced no changes on the final repeated
+Terraform and Ansible configuration runs.
+
 The commands below use ordinary interactive `terraform plan` and
 `terraform apply` steps to keep the learning workflow straightforward. For
 more controlled infrastructure changes, the safer practice is to save the plan
@@ -297,11 +303,15 @@ Generate the dedicated key pair used only for Ansible-managed VMs:
 ssh-keygen \
   -t ed25519 \
   -f /home/devops/.ssh/id_ed25519_ansible \
-  -C ansible-controller
+  -C ansible-controller \
+  -N ""
 ```
 
-The private key must remain on the controller. From the workstation, copy only
-the public key to a temporary path:
+The dedicated Ansible key must not use a passphrase because the controller uses
+it for non-interactive playbook connections. The private key remains protected
+by its filesystem permissions and must never leave `ansible-controller`.
+
+From the workstation, copy only the public key to a temporary path:
 
 ```bash
 scp devops@<controller-address>:/home/devops/.ssh/id_ed25519_ansible.pub \
@@ -376,6 +386,24 @@ ansible-playbook playbooks/verify_kubernetes_network.yml
 
 STOP on an unreachable host, identity mismatch, unexpected source address,
 missing peer connectivity, or occupied required pre-bootstrap port.
+
+### How to read playbook host output
+
+The playbooks intentionally use different inventory scopes:
+
+| Playbook | Hosts shown in the play recap |
+| --- | --- |
+| `connectivity.yml`, `verify_kubernetes_hosts.yml`, `verify_kubernetes_network.yml`, `kubernetes_prepare.yml` | The control plane and every worker in `k8s_cluster` |
+| `verify_kubeadm_preflight.yml`, `kubernetes_control_plane.yml`, `kubernetes_cni.yml`, `verify_kubernetes_cluster.yml` | Only the control-plane host, because their commands run there |
+| `kubernetes_workers.yml` | Every worker, processed one at a time because the playbook uses `serial: 1` |
+
+Consequently, a cluster verification recap containing only `k8s-cp-01` does
+not mean the workers were ignored. The playbook queries the complete cluster
+through the Kubernetes API. Its functional test schedules a server on the
+first worker and a client on the second worker while all Ansible tasks remain
+associated with the control-plane host. In a topology with additional workers,
+all registered nodes are checked for membership and readiness, but the direct
+cross-worker traffic test still uses only the first two workers.
 
 ## 9. Prepare every Kubernetes host
 
@@ -457,6 +485,9 @@ ansible-playbook playbooks/kubernetes_workers.yml \
 ```
 
 The role waits for each node to become `Ready` and deletes its temporary token.
+Ansible may display a separate `PLAY` section for each worker because
+`kubernetes_workers.yml` processes them serially. The final recap must contain
+every worker declared in inventory; it must not stop after only the first one.
 
 ## 13. Verify the finished environment
 
@@ -465,6 +496,10 @@ Run the read-only verification first:
 ```bash
 ansible-playbook playbooks/verify_kubernetes_cluster.yml
 ```
+
+This playbook runs on `k8s-cp-01`, so only the control-plane host appears in
+the recap even though node readiness and system workloads are checked across
+the complete cluster.
 
 Expected result: `changed=0`. Then run the functional verification:
 

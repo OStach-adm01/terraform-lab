@@ -28,6 +28,7 @@
 - Ran the functional cluster verification successfully. A temporary server Pod on `k8s-worker-01` and client Pod on `k8s-worker-02` verified cluster DNS, Service ClusterIP routing, and direct cross-worker Pod connectivity; the temporary namespace was removed afterward. The expected recap was `ok=22`, `changed=2`, `unreachable=0`, and `failed=0`, with both changes representing creation and cleanup of test resources.
 - Rebooted `k8s-worker-01`, `k8s-worker-02`, and finally the single control-plane node in a controlled sequence. After every restart, all three nodes and required system components returned to readiness and the complete functional verification passed.
 - The control-plane recovery test exposed a race between namespace creation and automatic creation of its default ServiceAccount. The verification manifest now creates a dedicated unprivileged ServiceAccount explicitly, disables token mounting, and no longer depends on namespace-controller timing.
+- Validated `environment-setup.md` end to end after `terraform destroy`. The staged procedure recreated `ansible-controller`, rotated its dedicated Ansible key, provisioned all Kubernetes nodes, prepared and bootstrapped the cluster, restored Calico and both workers, passed the functional cluster checks, and converged with no changes on the final repeated Terraform and Ansible configuration runs.
 
 ## 2026-08-08
 

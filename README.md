@@ -87,6 +87,8 @@ Kubernetes `1.36.3` cluster. The control plane and both workers are `Ready`,
 Calico `3.32.1` provides cluster networking, and the configuration playbooks
 are idempotent. The environment has also passed a complete destroy-and-rebuild
 test using a newly created Ansible controller and a rotated controller SSH key.
+The documented reproduction workflow was subsequently repeated from the
+destroyed Terraform-managed VM state and again converged without changes.
 
 | VMID | Name | Address | Resources | Current state |
 | ---: | --- | --- | --- | --- |
