@@ -234,6 +234,13 @@
                   app.kubernetes.io/managed-by: ansible
               ---
               apiVersion: v1
+              kind: ServiceAccount
+              metadata:
+                name: network-verification
+                namespace: {{ kubernetes_cluster_verification_namespace }}
+              automountServiceAccountToken: false
+              ---
+              apiVersion: v1
               kind: Pod
               metadata:
                 name: network-server
@@ -242,6 +249,8 @@
                   app: network-server
               spec:
                 nodeName: {{ groups['workers'][0] }}
+                serviceAccountName: network-verification
+                automountServiceAccountToken: false
                 restartPolicy: Never
                 containers:
                   - name: server
@@ -277,6 +286,8 @@
                 namespace: {{ kubernetes_cluster_verification_namespace }}
               spec:
                 nodeName: {{ groups['workers'][1] }}
+                serviceAccountName: network-verification
+                automountServiceAccountToken: false
                 restartPolicy: Never
                 containers:
                   - name: client
