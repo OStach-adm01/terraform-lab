@@ -1,0 +1,423 @@
+---
+- name: Verify the initialized Kubernetes cluster
+  hosts: control_plane
+  gather_facts: false
+  become: false
+
+  vars:
+    kubernetes_cluster_verification_enabled: false
+    kubernetes_cluster_verification_namespace: ansible-kubernetes-verification
+    kubernetes_cluster_verification_image: busybox:1.37.0
+    kubernetes_cluster_verification_kubeconfig: /home/devops/.kube/config
+
+  tasks:
+    - name: Verify the cluster verification safety switch type
+      ansible.builtin.assert:
+        that:
+          - >-
+            kubernetes_cluster_verification_enabled
+            is boolean
+        fail_msg: >-
+          kubernetes_cluster_verification_enabled must be a boolean value
+        success_msg: >-
+          The cluster verification safety switch has a valid boolean value
+
+    - name: Verify the expected cluster inventory scope
+      ansible.builtin.assert:
+        that:
+          - groups['control_plane'] | length == 1
+          - inventory_hostname == groups['control_plane'][0]
+          - groups['workers'] | length >= 2
+        fail_msg: >-
+          Cluster verification requires one control-plane host and at least
+          two worker hosts
+        success_msg: >-
+          The inventory contains one control-plane host and at least two workers
+
+    - name: Wait for every Kubernetes node to become Ready
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cluster_verification_kubeconfig }}"
+          - wait
+          - --for=condition=Ready
+          - node
+          - --all
+          - --timeout=120s
+      changed_when: false
+      check_mode: false
+
+    - name: Read registered Kubernetes node names
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cluster_verification_kubeconfig }}"
+          - get
+          - nodes
+          - -o
+          - jsonpath={range .items[*]}{.metadata.name}{"\n"}{end}
+      register: kubernetes_cluster_registered_nodes
+      changed_when: false
+      check_mode: false
+
+    - name: Verify that Kubernetes contains exactly the inventory nodes
+      ansible.builtin.assert:
+        that:
+          - >-
+            kubernetes_cluster_registered_nodes.stdout_lines | sort
+            == groups['k8s_cluster'] | sort
+        fail_msg: >-
+          Registered Kubernetes nodes do not match the k8s_cluster inventory
+        success_msg: >-
+          Registered Kubernetes nodes match the k8s_cluster inventory
+
+    - name: Verify the Kubernetes API readiness endpoint
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cluster_verification_kubeconfig }}"
+          - get
+          - --raw=/readyz
+      register: kubernetes_cluster_api_readiness
+      changed_when: false
+      failed_when: >-
+        kubernetes_cluster_api_readiness.rc != 0
+        or kubernetes_cluster_api_readiness.stdout | trim != 'ok'
+      check_mode: false
+
+    - name: Wait for the Calico node DaemonSet
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cluster_verification_kubeconfig }}"
+          - --namespace
+          - calico-system
+          - rollout
+          - status
+          - daemonset/calico-node
+          - --timeout=120s
+      changed_when: false
+      check_mode: false
+
+    - name: Wait for the Calico CSI node DaemonSet
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cluster_verification_kubeconfig }}"
+          - --namespace
+          - calico-system
+          - rollout
+          - status
+          - daemonset/csi-node-driver
+          - --timeout=120s
+      changed_when: false
+      check_mode: false
+
+    - name: Wait for the Calico controllers
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cluster_verification_kubeconfig }}"
+          - --namespace
+          - calico-system
+          - rollout
+          - status
+          - deployment/calico-kube-controllers
+          - --timeout=120s
+      changed_when: false
+      check_mode: false
+
+    - name: Wait for kube-proxy
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cluster_verification_kubeconfig }}"
+          - --namespace
+          - kube-system
+          - rollout
+          - status
+          - daemonset/kube-proxy
+          - --timeout=120s
+      changed_when: false
+      check_mode: false
+
+    - name: Wait for CoreDNS
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cluster_verification_kubeconfig }}"
+          - --namespace
+          - kube-system
+          - rollout
+          - status
+          - deployment/coredns
+          - --timeout=120s
+      changed_when: false
+      check_mode: false
+
+    - name: Wait for the Tigera Operator
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cluster_verification_kubeconfig }}"
+          - --namespace
+          - tigera-operator
+          - rollout
+          - status
+          - deployment/tigera-operator
+          - --timeout=120s
+      changed_when: false
+      check_mode: false
+
+    - name: Inspect the functional verification namespace
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cluster_verification_kubeconfig }}"
+          - get
+          - namespace
+          - "{{ kubernetes_cluster_verification_namespace }}"
+          - -o
+          - jsonpath={.metadata.labels.app\.kubernetes\.io/managed-by}
+      register: kubernetes_cluster_verification_namespace_state
+      changed_when: false
+      failed_when: >-
+        kubernetes_cluster_verification_namespace_state.rc not in [0, 1]
+      check_mode: false
+      when: kubernetes_cluster_verification_enabled
+
+    - name: Verify ownership of an existing verification namespace
+      ansible.builtin.assert:
+        that:
+          - >-
+            kubernetes_cluster_verification_namespace_state.rc == 1
+            or
+            kubernetes_cluster_verification_namespace_state.stdout
+            == 'ansible'
+        fail_msg: >-
+          Namespace {{ kubernetes_cluster_verification_namespace }} already
+          exists and is not marked as managed by Ansible; refusing to use or
+          delete it
+        success_msg: >-
+          The functional verification namespace is absent or owned by Ansible
+      when: kubernetes_cluster_verification_enabled
+
+    - name: Run functional cluster networking verification
+      when: kubernetes_cluster_verification_enabled
+      block:
+        - name: Deploy temporary networking verification resources
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/kubectl
+              - --kubeconfig
+              - "{{ kubernetes_cluster_verification_kubeconfig }}"
+              - apply
+              - -f
+              - -
+            stdin: |
+              ---
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: {{ kubernetes_cluster_verification_namespace }}
+                labels:
+                  app.kubernetes.io/managed-by: ansible
+              ---
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: network-server
+                namespace: {{ kubernetes_cluster_verification_namespace }}
+                labels:
+                  app: network-server
+              spec:
+                nodeName: {{ groups['workers'][0] }}
+                restartPolicy: Never
+                containers:
+                  - name: server
+                    image: {{ kubernetes_cluster_verification_image }}
+                    command:
+                      - /bin/sh
+                      - -c
+                      - >-
+                        mkdir -p /www &&
+                        printf 'kubernetes-network-ok\n' > /www/index.html &&
+                        httpd -f -p 8080 -h /www
+                    ports:
+                      - name: http
+                        containerPort: 8080
+              ---
+              apiVersion: v1
+              kind: Service
+              metadata:
+                name: network-server
+                namespace: {{ kubernetes_cluster_verification_namespace }}
+              spec:
+                selector:
+                  app: network-server
+                ports:
+                  - name: http
+                    port: 8080
+                    targetPort: http
+              ---
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: network-client
+                namespace: {{ kubernetes_cluster_verification_namespace }}
+              spec:
+                nodeName: {{ groups['workers'][1] }}
+                restartPolicy: Never
+                containers:
+                  - name: client
+                    image: {{ kubernetes_cluster_verification_image }}
+                    command:
+                      - /bin/sh
+                      - -c
+                      - sleep 3600
+          register: kubernetes_cluster_verification_apply
+          changed_when: >-
+            ' created' in kubernetes_cluster_verification_apply.stdout
+            or ' configured' in kubernetes_cluster_verification_apply.stdout
+          check_mode: false
+
+        - name: Wait for temporary verification pods
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/kubectl
+              - --kubeconfig
+              - "{{ kubernetes_cluster_verification_kubeconfig }}"
+              - --namespace
+              - "{{ kubernetes_cluster_verification_namespace }}"
+              - wait
+              - --for=condition=Ready
+              - pod/network-server
+              - pod/network-client
+              - --timeout=180s
+          changed_when: false
+          check_mode: false
+
+        - name: Read the network server Pod address
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/kubectl
+              - --kubeconfig
+              - "{{ kubernetes_cluster_verification_kubeconfig }}"
+              - --namespace
+              - "{{ kubernetes_cluster_verification_namespace }}"
+              - get
+              - pod
+              - network-server
+              - -o
+              - jsonpath={.status.podIP}
+          register: kubernetes_cluster_verification_server_ip
+          changed_when: false
+          check_mode: false
+
+        - name: Verify cluster DNS from the second worker
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/kubectl
+              - --kubeconfig
+              - "{{ kubernetes_cluster_verification_kubeconfig }}"
+              - --namespace
+              - "{{ kubernetes_cluster_verification_namespace }}"
+              - exec
+              - network-client
+              - --
+              - nslookup
+              - >-
+                network-server.{{ kubernetes_cluster_verification_namespace
+                }}.svc.cluster.local
+          register: kubernetes_cluster_verification_dns
+          changed_when: false
+          check_mode: false
+
+        - name: Verify Service ClusterIP connectivity between workers
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/kubectl
+              - --kubeconfig
+              - "{{ kubernetes_cluster_verification_kubeconfig }}"
+              - --namespace
+              - "{{ kubernetes_cluster_verification_namespace }}"
+              - exec
+              - network-client
+              - --
+              - wget
+              - -qO-
+              - http://network-server:8080/
+          register: kubernetes_cluster_verification_service_response
+          changed_when: false
+          check_mode: false
+
+        - name: Verify direct Pod connectivity between workers
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/kubectl
+              - --kubeconfig
+              - "{{ kubernetes_cluster_verification_kubeconfig }}"
+              - --namespace
+              - "{{ kubernetes_cluster_verification_namespace }}"
+              - exec
+              - network-client
+              - --
+              - wget
+              - -qO-
+              - >-
+                http://{{ kubernetes_cluster_verification_server_ip.stdout
+                }}:8080/
+          register: kubernetes_cluster_verification_pod_response
+          changed_when: false
+          check_mode: false
+
+        - name: Verify networking test responses
+          ansible.builtin.assert:
+            that:
+              - >-
+                kubernetes_cluster_verification_server_ip.stdout
+                | trim | length > 0
+              - >-
+                'network-server.'
+                ~ kubernetes_cluster_verification_namespace
+                in kubernetes_cluster_verification_dns.stdout
+              - >-
+                kubernetes_cluster_verification_service_response.stdout
+                | trim == 'kubernetes-network-ok'
+              - >-
+                kubernetes_cluster_verification_pod_response.stdout
+                | trim == 'kubernetes-network-ok'
+            fail_msg: >-
+              Cluster DNS, Service ClusterIP, or cross-worker Pod connectivity
+              verification failed
+            success_msg: >-
+              Cluster DNS, Service ClusterIP, and cross-worker Pod connectivity
+              work correctly
+
+      always:
+        - name: Remove temporary networking verification resources
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/kubectl
+              - --kubeconfig
+              - "{{ kubernetes_cluster_verification_kubeconfig }}"
+              - delete
+              - namespace
+              - "{{ kubernetes_cluster_verification_namespace }}"
+              - --ignore-not-found=true
+              - --wait=true
+              - --timeout=120s
+          register: kubernetes_cluster_verification_cleanup
+          changed_when: >-
+            ' deleted' in kubernetes_cluster_verification_cleanup.stdout
+          check_mode: false
