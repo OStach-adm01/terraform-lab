@@ -1,0 +1,18 @@
+---
+kubernetes_cni_prepare_enabled: false
+kubernetes_cni_install_enabled: false
+
+kubernetes_cni_kubeconfig_path: /home/devops/.kube/config
+kubernetes_cni_manifest_directory: /etc/kubernetes/calico
+
+kubernetes_cni_crd_manifest_url: >-
+  https://raw.githubusercontent.com/projectcalico/calico/v{{ calico_version }}/manifests/v1_crd_projectcalico_org.yaml
+kubernetes_cni_operator_manifest_url: >-
+  https://raw.githubusercontent.com/projectcalico/calico/v{{ calico_version }}/manifests/tigera-operator.yaml
+
+kubernetes_cni_crd_manifest_path: >-
+  {{ kubernetes_cni_manifest_directory }}/v1-crd-projectcalico-org.yaml
+kubernetes_cni_operator_manifest_path: >-
+  {{ kubernetes_cni_manifest_directory }}/tigera-operator.yaml
+kubernetes_cni_installation_manifest_path: >-
+  {{ kubernetes_cni_manifest_directory }}/installation.yaml

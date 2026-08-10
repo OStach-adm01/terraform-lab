@@ -1,0 +1,9 @@
+---
+- name: Configure Kubernetes cluster networking
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  any_errors_fatal: true
+
+  roles:
+    - kubernetes_cni

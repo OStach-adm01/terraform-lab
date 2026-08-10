@@ -1,0 +1,294 @@
+---
+- name: Verify the single-control-plane scope
+  ansible.builtin.assert:
+    that:
+      - groups['control_plane'] | length == 1
+      - inventory_hostname == groups['control_plane'][0]
+    fail_msg: >-
+      The CNI role must run on the single Kubernetes control-plane host
+    success_msg: >-
+      The CNI role is running on the expected control-plane host
+
+- name: Verify the CNI installation safety switch type
+  ansible.builtin.assert:
+    that:
+      - kubernetes_cni_install_enabled is boolean
+      - kubernetes_cni_prepare_enabled is boolean
+    fail_msg: >-
+      CNI preparation and installation switches must be booleans
+    success_msg: >-
+      The CNI safety switches have valid boolean values
+
+- name: Inspect the administrator kubeconfig
+  ansible.builtin.stat:
+    path: "{{ kubernetes_cni_kubeconfig_path }}"
+  register: kubernetes_cni_kubeconfig
+
+- name: Verify that the Kubernetes API credentials are available
+  ansible.builtin.assert:
+    that:
+      - kubernetes_cni_kubeconfig.stat.exists
+      - kubernetes_cni_kubeconfig.stat.isreg
+    fail_msg: >-
+      The administrator kubeconfig is missing.
+      Initialize and verify the control plane before installing CNI
+    success_msg: >-
+      The administrator kubeconfig is available
+
+- name: Read the kubeadm cluster configuration
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/kubectl
+      - --kubeconfig
+      - "{{ kubernetes_cni_kubeconfig_path }}"
+      - --namespace
+      - kube-system
+      - get
+      - configmap
+      - kubeadm-config
+      - --output
+      - jsonpath={.data.ClusterConfiguration}
+  register: kubernetes_cni_cluster_configuration
+  changed_when: false
+  check_mode: false
+
+- name: Verify the configured Kubernetes networks
+  ansible.builtin.assert:
+    that:
+      - >-
+        ('podSubnet: ' ~ kubernetes_pod_cidr)
+        in kubernetes_cni_cluster_configuration.stdout
+      - >-
+        ('serviceSubnet: ' ~ kubernetes_service_cidr)
+        in kubernetes_cni_cluster_configuration.stdout
+    fail_msg: >-
+      The live kubeadm Pod or Service network does not match inventory
+    success_msg: >-
+      The live kubeadm Pod and Service networks match inventory
+
+- name: Prepare Calico manifests
+  when:
+    - >-
+      kubernetes_cni_prepare_enabled
+      or kubernetes_cni_install_enabled
+  block:
+    - name: Create the Calico manifest directory
+      ansible.builtin.file:
+        path: "{{ kubernetes_cni_manifest_directory }}"
+        owner: root
+        group: root
+        mode: "0755"
+        state: directory
+
+    - name: Download the Calico CRD manifest
+      ansible.builtin.get_url:
+        url: "{{ kubernetes_cni_crd_manifest_url }}"
+        dest: "{{ kubernetes_cni_crd_manifest_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Download the Tigera Operator manifest
+      ansible.builtin.get_url:
+        url: "{{ kubernetes_cni_operator_manifest_url }}"
+        dest: "{{ kubernetes_cni_operator_manifest_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Render the Calico installation manifest
+      ansible.builtin.template:
+        src: installation.yaml.j2
+        dest: "{{ kubernetes_cni_installation_manifest_path }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+- name: Inspect the Calico project CRDs
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/kubectl
+      - --kubeconfig
+      - "{{ kubernetes_cni_kubeconfig_path }}"
+      - get
+      - customresourcedefinition
+      - globalnetworkpolicies.crd.projectcalico.org
+  register: kubernetes_cni_project_crds
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Inspect the Tigera Operator deployment
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/kubectl
+      - --kubeconfig
+      - "{{ kubernetes_cni_kubeconfig_path }}"
+      - --namespace
+      - tigera-operator
+      - get
+      - deployment
+      - tigera-operator
+  register: kubernetes_cni_operator
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Inspect the Tigera Installation CRD
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/kubectl
+      - --kubeconfig
+      - "{{ kubernetes_cni_kubeconfig_path }}"
+      - get
+      - customresourcedefinition
+      - installations.operator.tigera.io
+  register: kubernetes_cni_installation_crd
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Install Calico
+  when:
+    - kubernetes_cni_install_enabled
+    - not ansible_check_mode
+  block:
+    - name: Install the Calico project CRDs
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cni_kubeconfig_path }}"
+          - apply
+          - --server-side
+          - --force-conflicts
+          - --filename
+          - "{{ kubernetes_cni_crd_manifest_path }}"
+      when: kubernetes_cni_project_crds.rc != 0
+      changed_when: true
+
+    - name: Install the Tigera Operator
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cni_kubeconfig_path }}"
+          - apply
+          - --server-side
+          - --force-conflicts
+          - --filename
+          - "{{ kubernetes_cni_operator_manifest_path }}"
+      when: >-
+        kubernetes_cni_operator.rc != 0
+        or kubernetes_cni_installation_crd.rc != 0
+      changed_when: true
+
+    - name: Wait for the Tigera Installation CRD
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cni_kubeconfig_path }}"
+          - wait
+          - --for=condition=Established
+          - customresourcedefinition/installations.operator.tigera.io
+          - --timeout=180s
+      changed_when: false
+
+    - name: Wait for the Tigera Operator
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cni_kubeconfig_path }}"
+          - --namespace
+          - tigera-operator
+          - rollout
+          - status
+          - deployment/tigera-operator
+          - --timeout=300s
+      changed_when: false
+
+    - name: Apply the Calico installation resource
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cni_kubeconfig_path }}"
+          - apply
+          - --filename
+          - "{{ kubernetes_cni_installation_manifest_path }}"
+      register: kubernetes_cni_installation_apply
+      changed_when: >-
+        not (
+          kubernetes_cni_installation_apply.stdout
+          is search(' unchanged$')
+        )
+
+    - name: Wait for the Calico status resource
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cni_kubeconfig_path }}"
+          - get
+          - tigerastatus.operator.tigera.io
+          - calico
+      register: kubernetes_cni_status_resource
+      changed_when: false
+      failed_when: false
+      retries: 60
+      delay: 5
+      until: kubernetes_cni_status_resource.rc == 0
+
+    - name: Verify that the Calico status resource appeared
+      ansible.builtin.assert:
+        that:
+          - kubernetes_cni_status_resource.rc == 0
+        fail_msg: >-
+          The Calico status resource did not appear before the timeout
+        success_msg: >-
+          The Calico status resource is available
+
+    - name: Wait for required Calico components
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cni_kubeconfig_path }}"
+          - wait
+          - --for=condition=Available
+          - "tigerastatus.operator.tigera.io/{{ item }}"
+          - --timeout=600s
+      loop:
+        - calico
+        - ippools
+      loop_control:
+        label: "{{ item }}"
+      changed_when: false
+
+    - name: Wait for the control-plane node to become Ready
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cni_kubeconfig_path }}"
+          - wait
+          - --for=condition=Ready
+          - "node/{{ inventory_hostname }}"
+          - --timeout=600s
+      changed_when: false
+
+    - name: Wait for CoreDNS
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cni_kubeconfig_path }}"
+          - --namespace
+          - kube-system
+          - rollout
+          - status
+          - deployment/coredns
+          - --timeout=600s
+      changed_when: false
