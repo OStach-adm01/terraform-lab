@@ -40,9 +40,9 @@ flowchart LR
         controller["Ansible controller<br/>VMID 310 · 192.168.0.220"]
 
         subgraph cluster["Kubernetes cluster"]
-            cp["k8s-cp-01<br/>VMID 311 · 192.168.0.221<br/>Prepared"]
-            worker1["k8s-worker-01<br/>VMID 312 · 192.168.0.222<br/>Prepared"]
-            worker2["k8s-worker-02<br/>VMID 313 · 192.168.0.223<br/>Prepared"]
+            cp["k8s-cp-01<br/>VMID 311 · 192.168.0.221<br/>Control plane · Ready"]
+            worker1["k8s-worker-01<br/>VMID 312 · 192.168.0.222<br/>Worker · Ready"]
+            worker2["k8s-worker-02<br/>VMID 313 · 192.168.0.223<br/>Worker · Ready"]
         end
     end
 
@@ -61,49 +61,49 @@ flowchart LR
     class template,controller,cp,worker1,worker2 active;
 ```
 
-Green components are currently available. All three Kubernetes nodes are
-provisioned and have passed the Ansible host-preparation workflow.
+Green components are currently available. The single control-plane node and
+both workers are provisioned, configured, and `Ready`.
 
 All Terraform-managed instances are cloned from a verified Ubuntu 24.04
 Cloud-Init template on Proxmox VE. Terraform manages their infrastructure
 lifecycle, while the Ansible controller connects to Kubernetes hosts over SSH
-and configures their operating systems.
+and configures their operating systems and Kubernetes cluster state.
 
 ## Responsibility Boundaries
 
 | Layer | Responsibility |
 | --- | --- |
 | Terraform | Provisions and manages the lifecycle of Proxmox virtual machines, networking inputs, compute resources, and Cloud-Init configuration. |
-| Ansible | Configures the guest operating systems, installs packages, prepares the container runtime, and enforces Kubernetes host prerequisites. |
-| Kubernetes and kubeadm | Bootstrap and operate the cluster after the hosts have passed the infrastructure and operating-system verification gates. |
+| Ansible | Configures the guest operating systems, prepares the container runtime, bootstraps Kubernetes, installs Calico, joins workers, and runs repeatable verification. |
+| Kubernetes and kubeadm | Operate the cluster after the hosts have passed the infrastructure and operating-system verification gates. |
 
 Keeping these responsibilities separate makes failures easier to locate and
 allows each layer to be validated before the next one is introduced.
 
 ## Current Status
 
-The lab currently has an operational Ansible controller and three fully
-prepared Kubernetes nodes. The complete host-preparation playbook is
-idempotent across the cluster. The environment has also passed a complete
-destroy-and-rebuild test using a newly created Ansible controller and a rotated
-controller SSH key. Kubernetes bootstrap has not started yet.
+The lab currently has an operational Ansible controller and a three-node
+Kubernetes `1.36.3` cluster. The control plane and both workers are `Ready`,
+Calico `3.32.1` provides cluster networking, and the configuration playbooks
+are idempotent. The environment has also passed a complete destroy-and-rebuild
+test using a newly created Ansible controller and a rotated controller SSH key.
 
 | VMID | Name | Address | Resources | Current state |
 | ---: | --- | --- | --- | --- |
 | 300 | `ubuntu-2404-cloud-template` | — | 2 vCPU, 2 GB RAM, 20 GB disk | Legacy template retained temporarily as a rollback source |
 | 301 | `ubuntu-2404-cloud-template-uefi2023` | — | 2 vCPU, 2 GB RAM, 20 GB disk | Verified Ubuntu 24.04 template with Secure Boot |
 | 310 | `ansible-controller` | `192.168.0.220/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Provisioned and operational |
-| 311 | `k8s-cp-01` | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Provisioned; Ansible preparation verified and idempotent |
-| 312 | `k8s-worker-01` | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned; Ansible preparation verified and idempotent |
-| 313 | `k8s-worker-02` | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned; Ansible preparation verified and idempotent |
+| 311 | `k8s-cp-01` | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Kubernetes control plane; `Ready`; bootstrap and CNI verified and idempotent |
+| 312 | `k8s-worker-01` | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Kubernetes worker; `Ready`; join and verification completed |
+| 313 | `k8s-worker-02` | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Kubernetes worker; `Ready`; join and verification completed |
 
-The verified preparation on every Kubernetes node includes required kernel
+The verified configuration on every Kubernetes node includes required kernel
 modules and network parameters, disabled swap, containerd with the systemd
-cgroup driver, an active CRI plugin, and pinned Kubernetes packages. A repeated
-cluster-wide play reported no changes. Cluster bootstrap has not started yet.
-The versioned host-identity verification also confirms that every Kubernetes
-node has the expected hostname and management address and a unique hostname,
-IPv4 address, MAC address, and product UUID.
+cgroup driver, an active CRI plugin, and pinned Kubernetes packages. Repeated
+control-plane, CNI, and worker playbook runs reported no changes. Versioned
+verification confirms node identity and readiness, healthy system components,
+cluster DNS, Service ClusterIP routing, and direct Pod connectivity between the
+two workers.
 After the complete environment was destroyed, the controller was recreated
 first, its Ansible SSH key was regenerated, and the three Kubernetes nodes were
 then recreated and prepared again. The repeated Ansible run converged without
@@ -119,7 +119,7 @@ changes, and the final Terraform plan reported no infrastructure drift.
 | Configuration management | Ansible Core |
 | Container runtime | containerd |
 | Cluster bootstrap | Kubernetes `1.36.3`, kubeadm |
-| Cluster networking | Calico `3.32.1` planned |
+| Cluster networking | Calico `3.32.1`, Tigera Operator |
 | Version control and workflow | Git |
 
 Versions are intentionally explicit. They represent the current lab standard
@@ -201,10 +201,13 @@ terraform-lab/
 │   └── proxmox-vm/               # Reusable Proxmox VM module
 ├── ansible/
 │   ├── inventory/                # Hosts, groups, and shared variables
-│   ├── playbooks/                # Connectivity, baseline, and node preparation
+│   ├── playbooks/                # Configuration and repeatable verification workflows
 │   └── roles/
-│       ├── common/               # Shared operating-system baseline
-│       └── kubernetes_node/      # Kubernetes host prerequisites
+│       ├── common/                       # Shared operating-system baseline
+│       ├── kubernetes_node/              # Kubernetes host prerequisites
+│       ├── kubernetes_control_plane/     # Guarded kubeadm initialization
+│       ├── kubernetes_cni/               # Guarded Calico installation
+│       └── kubernetes_worker/            # Guarded worker joins
 └── docs/                         # Roadmap, changelog, problems, and image details
 ```
 
@@ -213,10 +216,11 @@ variables are intentionally excluded from version control.
 
 ## Roadmap
 
-Development is organized into verified phases. The current work is completing
-Kubernetes host preparation on all three nodes. Later phases cover cluster
-bootstrap, container application development, cluster services, application
-deployment, automated quality checks, and lifecycle documentation.
+Development is organized into verified phases. Kubernetes bootstrap and
+functional cluster networking verification are complete. The remaining cluster
+bootstrap gate is a controlled reboot and recovery test. Later phases cover
+container application development, cluster services, application deployment,
+automated quality checks, and lifecycle documentation.
 
 See [docs/roadmap.md](docs/roadmap.md) for the complete plan, current progress,
 and the verification gate for each phase.

@@ -55,7 +55,7 @@ The migration was completed in controlled stages:
 7. A new Ansible SSH key pair was generated on the controller. Its private key remains there, while its public key was copied to the workstation path configured by `ansible_ssh_public_key_path`.
 8. A final Terraform plan reported no changes with the Kubernetes VM definitions still disabled.
 
-The migration path was subsequently verified by enabling `k8s-worker-01` as a canary. Terraform created VMID 312 from VMID 301 with the administrator and new Ansible public keys, and the Ansible connectivity playbook verified SSH, module execution, fact gathering, and passwordless privilege escalation. VMIDs 311 and 313 remain disabled until the same workflow is ready to be applied to the rest of the cluster. The old template (VMID 300) remains available temporarily as a rollback source.
+The migration path was subsequently verified by enabling `k8s-worker-01` as a canary. Terraform created VMID 312 from VMID 301 with the administrator and new Ansible public keys, and the Ansible connectivity playbook verified SSH, module execution, fact gathering, and passwordless privilege escalation. The same workflow was then applied to VMIDs 311 and 313. All three Kubernetes VMs are now enabled, and the final Terraform plan reported no infrastructure drift. The old template (VMID 300) remains available temporarily as a rollback source.
 
 ## 3. DHCP pool overlapped the static lab address range
 

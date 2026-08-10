@@ -1,11 +1,39 @@
 # Changelog
 
+## 2026-08-10
+
+### Added
+
+- Added the guarded `kubernetes_control_plane` role and playbook with inventory topology validation, partial-state protection, a versioned kubeadm `v1beta4` initialization configuration, and administrator kubeconfig installation.
+- Added the guarded `kubernetes_cni` role and playbook for version-pinned Calico `3.32.1` installation through the Tigera Operator, including live cluster network validation and readiness checks.
+- Added the guarded `kubernetes_worker` role and serial worker playbook with local and API state consistency checks, short-lived join credentials, post-join validation, and guaranteed token cleanup.
+- Added `verify_kubernetes_cluster.yml` for repeatable control-plane, node, system component, cluster DNS, Service ClusterIP, and cross-worker Pod connectivity verification.
+
+### Infrastructure
+
+- Initialized `k8s-cp-01` as the single Kubernetes control-plane node with Kubernetes `1.36.3` and the declared Pod and Service networks.
+- Installed Calico `3.32.1`; the control-plane node became `Ready`, and CoreDNS and all required Calico components became available.
+- Joined `k8s-worker-01` and `k8s-worker-02` through guarded Ansible runs using short-lived kubeadm tokens that were deleted after each successful join.
+- Completed the intended three-node cluster topology with management addresses `192.168.0.221-192.168.0.223`.
+
+### Verification
+
+- Repeated the control-plane playbook after initialization and confirmed convergence with `changed=0`; the guarded kubeadm initialization and kubeconfig installation tasks were skipped.
+- Repeated the CNI playbook after installation and confirmed convergence with `changed=0`; Calico, the control-plane node, and CoreDNS remained ready.
+- Verified each existing worker against its local kubeadm state and Kubernetes API object, then repeated the worker playbook across the complete worker group with `changed=0`.
+- Confirmed that all three nodes are `Ready` with Kubernetes `1.36.3`, the expected management addresses, and containerd `2.2.1`.
+- Confirmed that Calico node and CSI pods and kube-proxy are running on every Kubernetes node, with CoreDNS, control-plane components, Calico controllers, and the Tigera Operator healthy.
+- Ran the functional cluster verification successfully. A temporary server Pod on `k8s-worker-01` and client Pod on `k8s-worker-02` verified cluster DNS, Service ClusterIP routing, and direct cross-worker Pod connectivity; the temporary namespace was removed afterward. The expected recap was `ok=22`, `changed=2`, `unreachable=0`, and `failed=0`, with both changes representing creation and cleanup of test resources.
+
 ## 2026-08-08
 
 ### Added
 
 - Added the read-only `verify_kubernetes_hosts.yml` playbook to collect and display normalized Kubernetes node identities.
 - Added cluster-wide assertions for expected hostnames and management addresses and for unique hostnames, IPv4 addresses, MAC addresses, and product UUIDs.
+- Added the read-only `verify_kubernetes_network.yml` playbook to verify peer routing, expected source addresses, bidirectional ICMP connectivity, and free role-specific Kubernetes ports before bootstrap.
+- Added shared API server, containerd CRI socket, and cluster DNS variables together with a versioned kubeadm `v1beta4` initialization configuration template.
+- Added `verify_kubeadm_preflight.yml` to validate the single-control-plane topology, kubeadm version, containerd socket, absence of existing cluster state, rendered kubeadm configuration, and kubeadm init preflight in dry-run mode.
 - Established a project direction to implement host, network, kubeadm preflight, and post-bootstrap verification primarily as versioned Ansible playbooks so a rebuilt controller can reproduce the validation workflow after cloning the repository.
 
 ### Infrastructure
@@ -18,6 +46,9 @@
 - The initial identity run correctly stopped because unprivileged fact gathering returned `NA` instead of the virtual machine product UUID on every node.
 - Enabled privilege escalation for read-only hardware fact gathering and strengthened validation to reject unavailable UUID values.
 - Repeated the identity playbook successfully. Every node matched its inventory hostname and management address, all MAC addresses and product UUIDs were unique, and the play recap reported `changed=0`, `unreachable=0`, and `failed=0` across the cluster.
+- Ran the pre-bootstrap network playbook across all three nodes. Every node used the expected management address for routes to both peers, all six ICMP directions succeeded, every required role-specific TCP port was free, and each host reported `ok=11`, `changed=0`, `unreachable=0`, and `failed=0`.
+- Confirmed that route, ICMP, and listener checks do not require privilege escalation on the supported Ubuntu hosts; stderr validation remains in place so an unavailable listener query cannot be mistaken for a free port.
+- Ran `kubeadm init phase preflight --dry-run` through Ansible on `k8s-cp-01` using the rendered initialization configuration. Kubeadm completed successfully, reported that required images would be pulled during a real initialization, and reported use of its temporary dry-run workspace; the play recap reported `ok=13`, `changed=0`, `unreachable=0`, and `failed=0`.
 - Ran the connectivity playbook across all Kubernetes nodes and verified SSH access, Ansible module execution, minimal fact gathering, and passwordless privilege escalation.
 - Applied the complete Kubernetes host-preparation playbook to `k8s-cp-01`; the initial run reported `changed=16`, and the repeated run reported `ok=37`, `changed=0`, `unreachable=0`, and `failed=0`.
 - Applied the same workflow to `k8s-worker-02` with matching initial and idempotent results.

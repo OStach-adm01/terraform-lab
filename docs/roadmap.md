@@ -60,13 +60,13 @@ Verification gate: the versioned image runs locally, passes its health check, an
 - [x] Select and document Kubernetes `1.36.3`, containerd, Calico `3.32.1`, Pod CIDR `10.244.0.0/16`, and Service CIDR `10.96.0.0/12`.
 - [x] Confirm that the Pod and Service networks do not overlap each other or the host network `192.168.0.0/24`.
 - [x] Verify expected and unique hostnames, management addresses, MAC addresses, and `product_uuid` values on all Kubernetes nodes through a read-only Ansible playbook.
-- [ ] Verify required network connectivity and ports between the nodes through a repeatable Ansible playbook.
+- [x] Verify bidirectional routing and ICMP connectivity between every Kubernetes node and confirm that the required pre-bootstrap ports are free through a repeatable Ansible playbook.
 - [x] Create an Ansible role for required kernel modules and `sysctl` settings.
 - [x] Configure swap according to the selected kubelet policy.
 - [x] Install and configure `containerd` with the systemd cgroup driver and verify that its CRI plugin is active.
 - [x] Add the Kubernetes package repository and install pinned `1.36.3-1.1` versions of `kubelet`, `kubeadm`, and `kubectl`.
 - [x] Prevent unintended Kubernetes package upgrades with APT holds.
-- [ ] Run and review the relevant `kubeadm` preflight checks through Ansible before cluster initialization.
+- [x] Run and review `kubeadm init phase preflight --dry-run` through Ansible using the versioned kubeadm configuration intended for cluster initialization.
 - [x] Run the host-preparation roles a second time on the `k8s-worker-01` canary and confirm `changed=0`.
 - [x] Apply and verify the host-preparation roles on `k8s-cp-01` and `k8s-worker-02`.
 - [x] Run the host-preparation playbook across `k8s_cluster` and confirm `ok=37`, `changed=0`, `unreachable=0`, and `failed=0` on every node.
@@ -75,14 +75,14 @@ Verification gate: every node satisfies the selected Kubernetes version's prereq
 
 ## 5. Kubernetes Cluster Bootstrap
 
-- [ ] Bootstrap the single control-plane node with `kubeadm` through Ansible.
-- [ ] Configure kubeconfig for the intended administrative user.
-- [ ] Install the selected CNI plugin.
-- [ ] Verify the control-plane components and CoreDNS.
-- [ ] Join both worker nodes to the cluster through Ansible.
-- [ ] Confirm that all nodes reach the `Ready` state.
-- [ ] Verify Pod-to-Pod connectivity across different nodes.
-- [ ] Verify DNS resolution from inside a Pod.
+- [x] Bootstrap the single control-plane node with `kubeadm` through a guarded and idempotent Ansible role.
+- [x] Configure kubeconfig for the intended administrative user.
+- [x] Install Calico `3.32.1` through the Tigera Operator using a guarded Ansible role.
+- [x] Verify the control-plane components, Calico components, and CoreDNS.
+- [x] Join both worker nodes serially through Ansible using short-lived kubeadm tokens and guaranteed token cleanup.
+- [x] Confirm that all nodes reach the `Ready` state.
+- [x] Verify direct Pod-to-Pod connectivity across the two worker nodes through a repeatable Ansible playbook.
+- [x] Verify DNS resolution and Service ClusterIP routing from inside a Pod.
 - [ ] Reboot nodes in a controlled sequence and confirm that the cluster recovers.
 
 Verification gate: the control plane and both workers are healthy, cluster networking and DNS work, and the cluster survives controlled node reboots.
@@ -142,13 +142,13 @@ This project has one lab environment, so the Terraform configuration is not spli
 | 300 | `ubuntu-2404-cloud-template` | Legacy Ubuntu 24.04 template | — | 2 vCPU, 2 GB RAM, 20 GB disk | Retained temporarily as a rollback source; EFI `2m` warning applies |
 | 301 | `ubuntu-2404-cloud-template-uefi2023` | Current Ubuntu 24.04 template | — | 2 vCPU, 2 GB RAM, 20 GB disk | Verified; EFI `4m`, Secure Boot, Microsoft UEFI 2023 certificates |
 | 310 | `ansible-controller` | Ansible control node | `192.168.0.220/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Recreated from VMID 301; verified; Ansible Core operational |
-| 311 | `k8s-cp-01` | Prepared control plane | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Provisioned from VMID 301; connectivity and Kubernetes host preparation verified; idempotent |
-| 312 | `k8s-worker-01` | Prepared worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned from VMID 301; connectivity and Kubernetes host preparation verified; idempotent |
-| 313 | `k8s-worker-02` | Prepared worker | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Provisioned from VMID 301; connectivity and Kubernetes host preparation verified; idempotent |
+| 311 | `k8s-cp-01` | Kubernetes control plane | `192.168.0.221/24` | 2 vCPU, 2 GB RAM, 20 GB disk | Kubernetes `1.36.3`; Calico `3.32.1`; `Ready`; bootstrap and CNI roles verified and idempotent |
+| 312 | `k8s-worker-01` | Kubernetes worker | `192.168.0.222/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Joined through Ansible; `Ready`; worker role verified and idempotent |
+| 313 | `k8s-worker-02` | Kubernetes worker | `192.168.0.223/24` | 1 vCPU, 2 GB RAM, 20 GB disk | Joined through Ansible; `Ready`; worker role verified and idempotent |
 
 All current and planned Terraform-managed instances use node `pve`, pool `terraform-lab`, bridge `vmbr0`, storage `local-lvm`, and gateway/DNS `192.168.0.1`.
 
-Terraform creates reachable Ubuntu VMs. Ansible configures their operating systems. All three Kubernetes nodes are enabled and have passed the connectivity, baseline, and Kubernetes host-preparation workflows. A repeated cluster-wide preparation run reported no changes, and Terraform subsequently reported no infrastructure drift.
+Terraform creates reachable Ubuntu VMs, and Ansible configures their operating systems and bootstraps Kubernetes. The single control-plane node and both workers are enabled and `Ready`. Kubernetes `1.36.3`, Calico `3.32.1`, cluster DNS, Service ClusterIP routing, and direct cross-worker Pod connectivity have been verified through versioned Ansible workflows. Repeated control-plane, CNI, and worker configuration runs reported no changes, and Terraform subsequently reported no infrastructure drift.
 
 ## Network and Address Plan
 
@@ -191,7 +191,10 @@ terraform-lab/
 │   ├── playbooks/
 │   └── roles/
 │       ├── common/
-│       └── kubernetes_node/
+│       ├── kubernetes_node/
+│       ├── kubernetes_control_plane/
+│       ├── kubernetes_cni/
+│       └── kubernetes_worker/
 ├── kubernetes/                    # planned manifests and configuration
 └── docs/
 ```
