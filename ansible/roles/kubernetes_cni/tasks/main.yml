@@ -209,6 +209,20 @@
           - --timeout=300s
       changed_when: false
 
+    - name: Compare the Calico installation resource
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/kubectl
+          - --kubeconfig
+          - "{{ kubernetes_cni_kubeconfig_path }}"
+          - diff
+          - --filename
+          - "{{ kubernetes_cni_installation_manifest_path }}"
+      register: kubernetes_cni_installation_diff
+      changed_when: false
+      failed_when: >-
+        kubernetes_cni_installation_diff.rc not in [0, 1]
+
     - name: Apply the Calico installation resource
       ansible.builtin.command:
         argv:
@@ -218,12 +232,8 @@
           - apply
           - --filename
           - "{{ kubernetes_cni_installation_manifest_path }}"
-      register: kubernetes_cni_installation_apply
-      changed_when: >-
-        not (
-          kubernetes_cni_installation_apply.stdout
-          is search(' unchanged$')
-        )
+      when: kubernetes_cni_installation_diff.rc == 1
+      changed_when: true
 
     - name: Wait for the Calico status resource
       ansible.builtin.command:
